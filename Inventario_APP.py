@@ -6,7 +6,7 @@ st.set_page_config(page_title="Sistema de Apartados Bajaj", layout="wide")
 
 # 1. Conexión y Carga de Datos
 conn = st.connection("gsheets", type=GSheetsConnection)
-URL_SHEET = "https://docs.google.com/spreadsheets/d/1c9WqiNYi_ycGeVCTo94bUmJBvDAddH8u9jM0KW1SQmw/edit"
+URL_SHEET = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
 
 def load_data():
     df_inv = conn.read(spreadsheet=URL_SHEET, worksheet="Inventario")
