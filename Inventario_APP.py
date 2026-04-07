@@ -1,89 +1,77 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+from datetime import datetime
+import uuid
 
-st.set_page_config(page_title="Sistema de Apartados Bajaj", layout="wide")
-
-# 1. Conexión y Carga de Datos
+# 1. Configuración y Conexión
 conn = st.connection("gsheets", type=GSheetsConnection)
-URL_SHEET = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
+URL = "https://docs.google.com/spreadsheets/d/1c9WqiNYi_ycGeVCTo94bUmJBvDAddH8u9jM0KW1SQmw/edit"
 
-def load_data():
-    df_inv = conn.read(spreadsheet=URL_SHEET, worksheet="Inventario")
-    df_user = conn.read(spreadsheet=URL_SHEET, worksheet="Usuarios")
-    return df_inv, df_user
+# 2. Carga de datos (Agregamos Agencias)
+@st.cache_data(ttl=300)
+def load_all_data():
+    inv = conn.read(spreadsheet=URL, worksheet="Inventario")
+    usr = conn.read(spreadsheet=URL, worksheet="Usuarios")
+    age = conn.read(spreadsheet=URL, worksheet="Agencias")
+    return inv, usr, age
 
-df_inventario, df_usuarios = load_data()
-lista_gerentes = df_usuarios.iloc[:, 0].dropna().unique().tolist()
+df_inv, df_usr, df_age = load_all_data()
+gerentes = df_usr.iloc[:, 0].dropna().tolist()
+sucursales = df_age.iloc[:, 0].dropna().tolist()
 
-# --- INTERFAZ ---
-st.title("🏍️ Gestión de Apartados Regionales")
+# 3. Interfaz Principal
+st.title("Sistema de Apartados y Logística")
+gerente_sel = st.sidebar.selectbox("Gerente Regional", gerentes)
 
-# Sidebar para Filtros y Registro
-st.sidebar.header("Configuración")
-gerente_identificado = st.sidebar.selectbox("¿Quién eres? (Gerente Regional)", lista_gerentes)
-
-st.sidebar.divider()
-st.sidebar.subheader("📝 Registrar Nuevo Apartado")
-
-# Formulario para apartar
-with st.sidebar.form("form_apartado"):
-    # Buscamos por descripción para que sea más fácil de identificar
-    modelo_opciones = df_inventario['Descripción del artículo'].unique().tolist()
-    item_a_apartar = st.selectbox("Selecciona el Artículo", modelo_opciones)
-    cantidad = st.number_input("Cantidad a apartar", min_value=1, step=1)
+# --- FORMULARIO DE APARTADO ---
+with st.sidebar.form("Registro_Movimiento"):
+    st.subheader("📝 Nuevo Apartado")
+    modelo_sel = st.selectbox("Modelo / Artículo", df_inv['Descripción del artículo'])
+    sucursal_dest = st.selectbox("Sucursal Destino", sucursales)
+    cantidad = st.number_input("Cantidad", min_value=1, step=1)
     
-    boton_guardar = st.form_submit_button("Confirmar Apartado")
-
-    if boton_guardar:
-        # 1. Localizar la fila y la columna
-        # Filtramos el dataframe original para encontrar el índice de la fila
-        idx_fila = df_inventario.index[df_inventario['Descripción del artículo'] == item_a_apartar].tolist()[0]
+    if st.form_submit_button("Confirmar y Registrar"):
+        # Localizar datos del modelo
+        fila_data = df_inv[df_inv['Descripción del artículo'] == modelo_sel].iloc[0]
+        idx = df_inv.index[df_inv['Descripción del artículo'] == modelo_sel][0]
         
-        # 2. Verificar disponibilidad restante antes de apartar
-        disponible_actual = df_inventario.at[idx_fila, 'Disponible Restante']
-        
-        if disponible_actual >= cantidad:
-            # 3. Actualizar el valor en la columna del Gerente
-            # Sumamos lo que ya tenía ese gerente + la nueva cantidad
-            valor_previo_gerente = df_inventario.at[idx_fila, gerente_identificado]
-            # Manejar si la celda está vacía (NaN)
-            if pd.isna(valor_previo_gerente): valor_previo_gerente = 0
+        if fila_data['Disponible Restante'] >= cantidad:
+            # A. ACTUALIZAR HOJA INVENTARIO (Columna del Gerente)
+            df_inv.at[idx, gerente_sel] = (df_inv.at[idx, gerente_sel] or 0) + cantidad
+            conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
             
-            df_inventario.at[idx_fila, gerente_identificado] = valor_previo_gerente + cantidad
+            # B. REGISTRAR EN HOJA MOVIMIENTOS_APARTADOS
+            df_movs = conn.read(spreadsheet=URL, worksheet="Movimientos_Apartados")
             
-            # 4. Enviar los datos de vuelta a Google Sheets
-            try:
-                conn.update(spreadsheet=URL_SHEET, worksheet="Inventario", data=df_inventario)
-                st.sidebar.success(f"✅ Apartado registrado con éxito para {item_a_apartar}")
-                # Limpiamos caché para que la tabla principal se actualice
-                st.cache_data.clear()
-                st.rerun()
-            except Exception as e:
-                st.sidebar.error(f"Error al guardar en Google Sheets: {e}")
+            nuevo_mov = {
+                "ID_Apartado": str(uuid.uuid4())[:8], # Genera ID corto único
+                "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Item_Number": fila_data['Item Number'],
+                "Modelo": fila_data['Modelo'],
+                "Color": fila_data['Color'],
+                "Año Modelo": fila_data['Año Modelo'],
+                "Sucursal_Destino": sucursal_dest,
+                "Cantidad": cantidad,
+                "Nombre Regional": gerente_sel
+            }
+            
+            df_movs = pd.concat([df_movs, pd.DataFrame([nuevo_mov])], ignore_index=True)
+            conn.update(spreadsheet=URL, worksheet="Movimientos_Apartados", data=df_movs)
+            
+            st.success(f"Movimiento {nuevo_mov['ID_Apartado']} registrado correctamente")
+            st.cache_data.clear()
+            st.rerun()
         else:
-            st.sidebar.error(f"❌ No hay suficiente stock. Disponible: {disponible_actual}")
+            st.error("No hay stock suficiente.")
 
-# --- PANTALLA PRINCIPAL: VISTA DE INVENTARIO ---
-st.subheader(f"Estado de Inventario - Regional: {gerente_identificado}")
+# 4. Visualización de Inventario (Tabla General)
+st.subheader(f"Inventario Actual - Vista {gerente_sel}")
+cols_vista = ['Item Number', 'Modelo', 'Color', 'Año Modelo', 'Disponible Inicial', gerente_sel, 'Disponible Restante']
+st.dataframe(df_inv[cols_vista], use_container_width=True, hide_index=True)
 
-# Filtro rápido de búsqueda
-busqueda = st.text_input("🔍 Buscar por descripción, modelo o color...")
-
-# Columnas a mostrar (Dinámicas según el gerente)
-cols_ver = ['Item Number', 'Descripción del artículo', 'Modelo', 'Color', 'Año Modelo', 'Disponible Inicial', gerente_identificado, 'Disponible Restante']
-
-df_final = df_inventario.copy()
-if busqueda:
-    df_final = df_final[df_final.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)]
-
-st.dataframe(df_final[cols_ver], use_container_width=True, hide_index=True)
-
-# Métricas
-c1, c2 = st.columns(2)
-with c1:
-    total_gerente = df_final[gerente_identificado].sum()
-    st.metric(f"Total Apartado por {gerente_identificado}", f"{int(total_gerente)} uds")
-with c2:
-    total_disponible = df_final['Disponible Restante'].sum()
-    st.metric("Total Disponible General", f"{int(total_disponible)} uds")
+# 5. Visualización de Historial (Opcional para ver qué se ha registrado)
+if st.checkbox("Ver historial de movimientos"):
+    df_historial = conn.read(spreadsheet=URL, worksheet="Movimientos_Apartados")
+    st.write("### Últimos Movimientos")
+    st.dataframe(df_historial.tail(10), use_container_width=True)
