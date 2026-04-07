@@ -45,18 +45,20 @@ if not st.session_state.autenticado:
                 st.error("Correo no autorizado.")
     st.stop()
 
-# --- CÁLCULOS ---
+# --- CÁLCULOS Y FORMATEO DE NÚMEROS ---
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'] == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
 
 gerentes_en_tabla = [g for g in df_usr.iloc[:, 0].dropna().tolist() if g in df_inv.columns]
 
+# Convertir columnas de gerentes a entero
 for g in gerentes_en_tabla:
-    df_inv[g] = pd.to_numeric(df_inv[g], errors='coerce').fillna(0)
+    df_inv[g] = pd.to_numeric(df_inv[g], errors='coerce').fillna(0).astype(int)
 
-df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0)
-df_inv['Disponible Restante'] = df_inv['Disponible Inicial'] - df_inv[gerentes_en_tabla].sum(axis=1)
+# Convertir Disponible Inicial y calcular Restante como entero
+df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
+df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes_en_tabla].sum(axis=1)).astype(int)
 
 # 3. INTERFAZ
 col_tit, col_ref = st.columns([4, 1])
@@ -110,7 +112,7 @@ if seleccion_modelo != "Seleccione...":
                     "Color": row['Color'],
                     "Año Modelo": row['Año Modelo'],
                     "Sucursal_Destino": sucursal,
-                    "Cantidad": cant,
+                    "Cantidad": int(cant),
                     "Nombre Regional": nombre_regional
                 }])
                 df_movs = pd.concat([df_movs, nuevo], ignore_index=True)
@@ -124,14 +126,13 @@ if seleccion_modelo != "Seleccione...":
 st.markdown("---")
 cols_mostrar = ['Item Number', 'Modelo', 'Color', 'Año Modelo', 'Disponible Inicial', 'Disponible Restante']
 
-# Función de estilo corregida para Pandas moderno
 def color_stock(val):
-    color = '#FF4B4B' if val <= 0 else None # Rojo Streamlit si es 0
+    color = '#FF4B4B' if val <= 0 else None
     return f'color: {color}; font-weight: bold' if color else ''
 
-# Usamos .map en lugar de .applymap
+# Mostramos la tabla con formato de número entero (sin decimales)
 st.dataframe(
-    df_inv[cols_mostrar].style.map(color_stock, subset=['Disponible Restante']),
+    df_inv[cols_mostrar].style.map(color_stock, subset=['Disponible Restante']).format(precision=0),
     use_container_width=True, 
     hide_index=True
 )
