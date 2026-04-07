@@ -1,26 +1,76 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
-st.set_page_config(page_title="Sistema de Inventario Bajaj", layout="wide")
+# Configuración de la página
+st.set_page_config(page_title="Inventario Bajaj", layout="wide", page_icon="🏍️")
 
-st.title("📊 Control de Inventario - Conexión Real")
+# Título y estilo
+st.title("🏍️ Sistema de Inventario - Sucursales")
+st.markdown("---")
 
-# Crear la conexión usando los secretos
+# 1. Conexión a los datos
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# URL de tu hoja (la que me pasaste)
 URL_SHEET = "https://docs.google.com/spreadsheets/d/1c9WqiNYi_ycGeVCTo94bUmJBvDAddH8u9jM0KW1SQmw/edit"
 
+@st.cache_data(ttl=600) # Los datos se actualizan cada 10 minutos para ser rápidos
+def load_data():
+    df = conn.read(spreadsheet=URL_SHEET, worksheet="Asiganciones Por Agencia")
+    # Limpieza básica: quitar filas vacías si las hay
+    df = df.dropna(subset=['Sucursal'])
+    return df
+
 try:
-    # Intentamos leer la pestaña de "Asiganciones Por Agencia"
-    df_asignaciones = conn.read(spreadsheet=URL_SHEET, worksheet="Asiganciones Por Agencia")
+    data = load_data()
+
+    # --- SIDEBAR: FILTROS ---
+    st.sidebar.header("Filtros de Búsqueda")
     
-    st.success("¡Conexión exitosa!")
+    # Filtro por Sucursal
+    sucursales = ["Todas"] + sorted(data['Sucursal'].unique().tolist())
+    sucursal_sel = st.sidebar.selectbox("Selecciona Agencia", sucursales)
+
+    # Filtro por Gerente
+    gerentes = ["Todos"] + sorted(data['Gerente SR'].unique().tolist())
+    gerente_sel = st.sidebar.selectbox("Filtrar por Gerente SR", gerentes)
+
+    # Aplicar Filtros
+    df_filtered = data.copy()
+    if sucursal_sel != "Todas":
+        df_filtered = df_filtered[df_filtered['Sucursal'] == sucursal_sel]
+    if gerente_sel != "Todos":
+        df_filtered = df_filtered[df_filtered['Gerente SR'] == gerente_sel]
+
+    # --- CUERPO PRINCIPAL: MÉTRICAS ---
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Unidades", int(df_filtered['Cantidad Apartada'].sum()))
+    with col2:
+        st.metric("Modelos Únicos", df_filtered['MODELO'].nunique())
+    with col3:
+        st.metric("Agencias Mostradas", df_filtered['Sucursal'].nunique())
+
+    # --- TABLA DE DATOS ---
+    st.subheader(f"Listado de Inventario: {sucursal_sel}")
     
-    # Mostrar un resumen rápido
-    st.subheader("Vista Previa de Asignaciones")
-    st.dataframe(df_asignaciones.head(10))
+    # Selector de columnas para no saturar la vista (estilo AppSheet)
+    cols_a_mostrar = ['Sucursal', 'MODELO', 'COLOR', 'Cantidad Apartada', 'Gerente SR', 'Gerente JR']
+    
+    st.dataframe(
+        df_filtered[cols_a_mostrar], 
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --- BUSCADOR ESPECÍFICO ---
+    st.divider()
+    search = st.text_input("🔍 Buscar modelo o color específico...")
+    if search:
+        search_res = df_filtered[df_filtered.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+        st.write("Resultados de búsqueda:")
+        st.table(search_res[cols_a_mostrar])
 
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
-    st.info("Revisa que hayas compartido la hoja con el correo de la cuenta de servicio.")
+    st.error("No se pudo cargar la información.")
+    st.info("Asegúrate de que tus 'Secrets' en Streamlit Cloud tengan el formato correcto del JSON de Google.")
