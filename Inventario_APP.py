@@ -38,6 +38,10 @@ df_inv = recalcular_disponibles(df_inv, gerentes)
 
 # 3. Interfaz Principal
 st.title("Sistema de Apartados y Logística")
+# Coloca esto justo después de st.title("...")
+if st.button("🔄 Sincronizar con Google Sheets"):
+    st.cache_data.clear()
+    st.rerun()
 gerente_sel = st.sidebar.selectbox("Gerente Regional", gerentes)
 
 # --- FORMULARIO DE APARTADO ---
