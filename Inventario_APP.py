@@ -9,7 +9,7 @@ st.set_page_config(page_title="Inventario Bajaj Motodrive", layout="wide", page_
 
 # 2. CONEXIÓN Y CARGA DE DATOS
 conn = st.connection("gsheets", type=GSheetsConnection)
-URL = "https://docs.google.com/spreadsheets/d/1c9WqiNYi_ycGeVCTo94bUmJBvDAddH8u9jM0KW1SQmw/edit"
+URL = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
 
 def recalcular_disponibles(df, lista_gerentes):
     for g in lista_gerentes:
