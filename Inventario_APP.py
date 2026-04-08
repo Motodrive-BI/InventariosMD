@@ -53,6 +53,40 @@ for g in gerentes:
 
 df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
 df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes].sum(axis=1)).astype(int)
+df_inv['Apartado'] = df_inv['Disponible Inicial'] - df_inv['Disponible Restante']
+
+# ============================================
+# 🔍 BUSCADOR + FILTROS (ARRIBA)
+# ============================================
+st.markdown("## 🔍 Búsqueda y filtros")
+
+colf1, colf2, colf3, colf4 = st.columns(4)
+
+with colf1:
+    busqueda = st.text_input("Buscar modelo")
+
+with colf2:
+    filtro_modelo = st.multiselect("Modelo", sorted(df_inv['Modelo'].unique()))
+
+with colf3:
+    filtro_color = st.multiselect("Color", sorted(df_inv['Color'].unique()))
+
+with colf4:
+    filtro_año = st.multiselect("Año", sorted(df_inv['Año Modelo'].unique()))
+
+df_filtrado = df_inv.copy()
+
+if busqueda:
+    df_filtrado = df_filtrado[df_filtrado['Modelo'].str.contains(busqueda, case=False, na=False)]
+
+if filtro_modelo:
+    df_filtrado = df_filtrado[df_filtrado['Modelo'].isin(filtro_modelo)]
+
+if filtro_color:
+    df_filtrado = df_filtrado[df_filtrado['Color'].isin(filtro_color)]
+
+if filtro_año:
+    df_filtrado = df_filtrado[df_filtrado['Año Modelo'].isin(filtro_año)]
 
 # ============================================
 # HEADER
@@ -60,7 +94,7 @@ df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes]
 st.title(f"🏍️ {nombre_regional}")
 
 # ============================================
-# 🟢 KPIs USUARIO
+# KPIs
 # ============================================
 total_inicial = int(df_inv['Disponible Inicial'].sum())
 total_restante = int(df_inv['Disponible Restante'].sum())
@@ -71,14 +105,30 @@ c1.metric("Disponible Inicial", total_inicial)
 c2.metric("Disponible Restante", total_restante)
 c3.metric("Tus Apartados", apartados_usuario)
 
-st.markdown("---")
+# ============================================
+# 📂 HISTORIAL LATERAL
+# ============================================
+with st.sidebar:
+    st.subheader("📂 Historial")
+
+    col_valida = None
+    for col in ["Nombre Regional", "Regional"]:
+        if col in df_movs.columns:
+            col_valida = col
+
+    if col_valida:
+        hist = df_movs[df_movs[col_valida] == nombre_regional]
+        st.dataframe(hist, use_container_width=True)
+    else:
+        st.warning("Sin columna válida")
 
 # ============================================
-# 🧩 MODELOS DISPONIBLES
+# 🧩 MODELOS
 # ============================================
+st.markdown("---")
 st.subheader("Modelos disponibles")
 
-for i, row in df_inv.iterrows():
+for i, row in df_filtrado.iterrows():
     stock = int(row['Disponible Restante'])
     color = "🔴" if stock <= 0 else "🟢"
 
@@ -120,7 +170,7 @@ if "modelo" in st.session_state:
                 "Fecha": datetime.now().strftime("%d/%m/%Y"),
                 "Modelo": row['Modelo'],
                 "Cantidad": cant,
-                "Regional": nombre_regional
+                "Nombre Regional": nombre_regional
             }])
 
             df_movs = pd.concat([df_movs, nuevo])
@@ -128,6 +178,7 @@ if "modelo" in st.session_state:
 
             st.success("Registrado")
             del st.session_state.modelo
+            st.cache_data.clear()
             st.rerun()
     else:
         st.error("Sin stock")
@@ -138,32 +189,21 @@ if "modelo" in st.session_state:
 st.markdown("---")
 st.header("📊 Dashboard")
 
-# Datos para gráfica
-df_chart = df_inv.copy()
-df_chart["Apartado"] = df_chart['Disponible Inicial'] - df_chart['Disponible Restante']
+c1, c2 = st.columns(2)
 
-chart = df_chart.set_index("Modelo")[["Disponible Restante", "Apartado"]]
-st.bar_chart(chart)
+with c1:
+    st.subheader("Disponible Inicial")
+    chart1 = df_inv.groupby("Modelo")["Disponible Inicial"].sum()
+    st.bar_chart(chart1)
 
-# ============================================
-# 📊 APARTADOS POR REGIONAL
-# ============================================
-st.subheader("Apartados por regional")
-
-regional_data = df_inv[gerentes].sum()
-st.bar_chart(regional_data)
+with c2:
+    st.subheader("Apartados")
+    chart2 = df_inv.groupby("Modelo")["Apartado"].sum()
+    st.bar_chart(chart2)
 
 # ============================================
-# 📋 TABLA INVENTARIO
+# 📋 TABLA
 # ============================================
 st.markdown("---")
 st.subheader("Inventario")
-
 st.dataframe(df_inv, use_container_width=True)
-
-# ============================================
-# 📂 HISTORIAL USUARIO
-# ============================================
-with st.expander("📂 Historial de tus apartados"):
-    hist = df_movs[df_movs["Nombre Regional"] == nombre_regional]
-    st.dataframe(hist, use_container_width=True)
