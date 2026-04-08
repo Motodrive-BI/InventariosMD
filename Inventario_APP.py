@@ -164,11 +164,19 @@ with st.sidebar:
                 valor_actual = df_inv.at[idx, nombre_regional]
                 nuevo_valor = valor_actual + cant
 
+                # Actualizar SOLO ESA FILA (no toda la hoja)
+                df_update = df_inv.copy()
+
+                df_update.at[idx, nombre_regional] = nuevo_valor
+
+                # 🔥 IMPORTANTE: eliminar columnas calculadas si existieran
+                if "Apartado" in df_update.columns:
+                    df_update = df_update.drop(columns=["Apartado"])
+
                 conn.update(
                     spreadsheet=URL,
                     worksheet="Inventario",
-                    data=pd.DataFrame({nombre_regional: [nuevo_valor]}),
-                    start=f"{col_letter}{fila_sheet}"
+                    data=df_update
                 )
 
                 # MOVIMIENTOS
@@ -235,7 +243,7 @@ st.markdown("---")
 st.header("📊 Dashboard")
 
 c1, c2 = st.columns(2)
-
+f
 with c1:
     st.subheader("Disponible Inicial")
     st.bar_chart(df_inv.groupby("Modelo")["Disponible Inicial"].sum())
