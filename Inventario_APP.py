@@ -53,7 +53,7 @@ for g in gerentes:
 
 df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
 df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes].sum(axis=1)).astype(int)
-df_inv['Apartado'] = df_inv['Disponible Inicial'] - df_inv['Disponible Restante']
+
 
 # ============================================
 # 🔍 BUSCADOR + FILTROS
