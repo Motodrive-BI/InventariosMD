@@ -100,45 +100,60 @@ df_inv_calc = df_inv.copy()
 df_inv_calc['Apartado'] = df_inv_calc['Disponible Inicial'] - df_inv_calc['Disponible Restante']
 
 # ============================================
-# FILTROS
+# FILTROS Y BOTONES
 # ============================================
 st.markdown("## 🔍 Búsqueda y filtros")
 
+# -- BOTONES NUEVOS --
+col_btn1, col_btn2, _ = st.columns([2, 2, 6]) 
+
+with col_btn1:
+    if st.button("🔄 Actualizar Datos", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+with col_btn2:
+    if st.button("🧹 Borrar Filtros", use_container_width=True):
+        # Borramos de la memoria las selecciones actuales
+        claves_filtros = ["busqueda_txt", "filtro_mod", "filtro_col", "filtro_ano"]
+        for clave in claves_filtros:
+            if clave in st.session_state:
+                del st.session_state[clave]
+        st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True) # Un pequeño espacio
+
+# -- FILTROS EN CASCADA --
 colf1, colf2, colf3, colf4 = st.columns(4)
 
+df_temp = df_inv.copy()
+
 with colf1:
-    busqueda = st.text_input("Buscar modelo")
+    busqueda = st.text_input("Buscar modelo", key="busqueda_txt")
+    if busqueda:
+        df_temp = df_temp[df_temp['Modelo'].astype(str).str.contains(busqueda, case=False, na=False)]
 
 with colf2:
-    filtro_modelo = st.multiselect("Modelo", clean_unique(df_inv['Modelo']))
+    opciones_modelo = clean_unique(df_temp['Modelo'])
+    filtro_modelo = st.multiselect("Modelo", opciones_modelo, key="filtro_mod")
+    if filtro_modelo:
+        df_temp = df_temp[df_temp['Modelo'].astype(str).isin(filtro_modelo)]
 
 with colf3:
-    filtro_color = st.multiselect("Color", clean_unique(df_inv['Color']))
+    # Las opciones de color ahora dependen de lo que haya filtrado el modelo
+    opciones_color = clean_unique(df_temp['Color'])
+    filtro_color = st.multiselect("Color", opciones_color, key="filtro_col")
+    if filtro_color:
+        df_temp = df_temp[df_temp['Color'].astype(str).isin(filtro_color)]
 
 with colf4:
-    filtro_año = st.multiselect("Año", clean_unique(df_inv['Año Modelo']))
+    # Las opciones de año ahora dependen de lo que hayan filtrado modelo y color
+    opciones_año = clean_unique(df_temp['Año Modelo'])
+    filtro_año = st.multiselect("Año", opciones_año, key="filtro_ano")
+    if filtro_año:
+        df_temp = df_temp[df_temp['Año Modelo'].astype(str).isin(filtro_año)]
 
-df_filtrado = df_inv.copy()
-
-if busqueda:
-    df_filtrado = df_filtrado[
-        df_filtrado['Modelo'].astype(str).str.contains(busqueda, case=False, na=False)
-    ]
-
-if filtro_modelo:
-    df_filtrado = df_filtrado[
-        df_filtrado['Modelo'].astype(str).isin(filtro_modelo)
-    ]
-
-if filtro_color:
-    df_filtrado = df_filtrado[
-        df_filtrado['Color'].astype(str).isin(filtro_color)
-    ]
-
-if filtro_año:
-    df_filtrado = df_filtrado[
-        df_filtrado['Año Modelo'].astype(str).isin(filtro_año)
-    ]
+df_filtrado = df_temp
 
 # ============================================
 # HEADER
@@ -167,7 +182,6 @@ with st.sidebar:
 
     st.subheader("📂 Historial Acumulado (Todos)")
 
-    # MODIFICACIÓN: Muestra el historial completo sin filtrar por gerente
     st.dataframe(df_movs, use_container_width=True)
 
     st.markdown("---")
@@ -181,7 +195,6 @@ with st.sidebar:
         st.success(f"{row['Modelo']} ({row['Color']})")
 
         if st.button("❌ Cancelar selección"):
-            # MODIFICACIÓN: Borrado seguro de session_state
             if 'modelo' in st.session_state:
                 del st.session_state.modelo
             st.rerun()
@@ -215,14 +228,12 @@ with st.sidebar:
                     nombre_regional
                 ]
 
-                # MODIFICACIÓN: Inserción forzada calculando la última fila vacía
                 filas_ocupadas = len(ws_movs.col_values(1)) 
                 siguiente_fila = filas_ocupadas + 1
                 ws_movs.insert_row(nuevo_mov, index=siguiente_fila)
 
                 st.success("✅ Registrado sin romper fórmulas")
 
-                # MODIFICACIÓN: Borrado seguro de session_state
                 if 'modelo' in st.session_state:
                     del st.session_state.modelo
                 st.cache_data.clear()
