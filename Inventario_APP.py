@@ -149,10 +149,14 @@ with st.sidebar:
                 conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
 
                 nuevo = pd.DataFrame([{
-                    "ID": str(uuid.uuid4())[:8],
-                    "Fecha": datetime.now().strftime("%d/%m/%Y"),
+                    "ID_Apartado": str(uuid.uuid4())[:8].upper(),
+                    "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    "Item_Number": row['Item Number'],
                     "Modelo": row['Modelo'],
-                    "Cantidad": cant,
+                    "Color": row['Color'],
+                    "Año Modelo": row['Año Modelo'],
+                    "Sucursal_Destino": suc,
+                    "Cantidad": int(cant),
                     "Nombre Regional": nombre_regional
                 }])
 
