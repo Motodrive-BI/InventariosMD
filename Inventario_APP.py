@@ -49,7 +49,15 @@ def load_data():
     return inv, usr, age, movs
 
 df_inv, df_usr, df_age, df_movs = load_data()
+df_inv = df_inv[
+    df_inv['Modelo'].notna() &
+    df_inv['Color'].notna() &
+    df_inv['Año Modelo'].notna()
+]
 
+df_inv = df_inv[
+    df_inv['Modelo'].astype(str).str.strip() != ""
+]
 # ============================================
 # 🔧 LIMPIEZA ROBUSTA (NUEVO)
 # ============================================
