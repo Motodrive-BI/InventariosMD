@@ -25,7 +25,7 @@ def connect_gspread():
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
 
     creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        st.secrets["connections"]["gsheets"],
         scopes=scope
     )
 
