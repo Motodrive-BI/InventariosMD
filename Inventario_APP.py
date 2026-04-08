@@ -142,7 +142,10 @@ st.title(f"🏍️ {nombre_regional}")
 # ============================================
 total_inicial = int(df_inv['Disponible Inicial'].sum())
 total_restante = int(df_inv['Disponible Restante'].sum())
-apartados_usuario = int(df_inv[nombre_regional].sum())
+if nombre_regional in df_inv.columns:
+    apartados_usuario = int(pd.to_numeric(df_inv[nombre_regional], errors='coerce').fillna(0).sum())
+else:
+    apartados_usuario = 0
 
 c1, c2, c3 = st.columns(3)
 c1.metric("Disponible Inicial", total_inicial)
