@@ -3,13 +3,15 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 import uuid
-import gspread # <--- Requerido: pip install gspread
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ============================================
-# CONFIG
+# CONFIGURACIÓN INICIAL
 # ============================================
 st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 
+# Conexión estándar para lectura
 conn = st.connection("gsheets", type=GSheetsConnection)
 URL = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
 
@@ -24,9 +26,10 @@ def load_data():
 df_inv, df_usr, df_age, df_movs = load_data()
 
 # ============================================
-# 🔤 FUNCIÓN PARA COLUMNAS EXCEL (A, B, C... AA, AB)
+# FUNCIONES DE UTILIDAD
 # ============================================
 def col_to_letter(col_idx):
+    """Convierte índice de columna (0, 1, 2...) a letra de Excel (A, B, C...)"""
     letter = ""
     col_idx += 1 
     while col_idx > 0:
@@ -35,34 +38,37 @@ def col_to_letter(col_idx):
     return letter
 
 # ============================================
-# LOGIN
+# SISTEMA DE LOGIN
 # ============================================
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
-    email = st.text_input("Correo")
-    if st.button("Login"):
+    st.title("🔐 Acceso Inventario")
+    email = st.text_input("Correo electrónico")
+    if st.button("Ingresar"):
         if email.lower() in df_usr['Correo'].str.lower().values:
             st.session_state.autenticado = True
             st.session_state.user_email = email.lower()
             st.rerun()
         else:
-            st.error("No autorizado")
+            st.error("Usuario no autorizado.")
     st.stop()
 
 # ============================================
-# PROCESAMIENTO DE DATOS
+# PROCESAMIENTO DE DATOS DEL USUARIO
 # ============================================
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'].str.lower() == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
 
+# Identificar columnas de gerentes para cálculos locales
 gerentes = [g for g in df_usr.iloc[:,0].dropna().tolist() if g in df_inv.columns]
 
 for g in gerentes:
     df_inv[g] = pd.to_numeric(df_inv[g], errors='coerce').fillna(0).astype(int)
 
+# Estos cálculos son solo para mostrar en la App, no se guardan (evita pisar fórmulas)
 df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
 df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes].sum(axis=1)).astype(int)
 
@@ -70,81 +76,69 @@ df_inv_calc = df_inv.copy()
 df_inv_calc['Apartado'] = df_inv_calc['Disponible Inicial'] - df_inv_calc['Disponible Restante']
 
 # ============================================
-# 🔍 FILTROS
+# BÚSQUEDA Y FILTROS
 # ============================================
-st.markdown("## 🔍 Búsqueda y filtros")
-colf1, colf2, colf3, colf4 = st.columns(4)
+st.title(f"🏍️ Gestión: {nombre_regional}")
+st.markdown("---")
 
-with colf1: busqueda = st.text_input("Buscar modelo")
+colf1, colf2, colf3 = st.columns(3)
+with colf1: busqueda = st.text_input("🔍 Buscar por modelo")
 with colf2: filtro_modelo = st.multiselect("Modelo", sorted(df_inv['Modelo'].unique()))
-with colf3: filtro_color = st.multiselect("Color", sorted(df_inv['Color'].unique()))
-with colf4: filtro_año = st.multiselect("Año", sorted(df_inv['Año Modelo'].unique()))
+with colf3: filtro_año = st.multiselect("Año", sorted(df_inv['Año Modelo'].unique()))
 
 df_filtrado = df_inv.copy()
 if busqueda: df_filtrado = df_filtrado[df_filtrado['Modelo'].str.contains(busqueda, case=False, na=False)]
 if filtro_modelo: df_filtrado = df_filtrado[df_filtrado['Modelo'].isin(filtro_modelo)]
-if filtro_color: df_filtrado = df_filtrado[df_filtrado['Color'].isin(filtro_color)]
 if filtro_año: df_filtrado = df_filtrado[df_filtrado['Año Modelo'].isin(filtro_año)]
 
 # ============================================
 # KPIs
 # ============================================
-st.title(f"🏍️ {nombre_regional}")
 c1, c2, c3 = st.columns(3)
-c1.metric("Disponible Inicial", int(df_inv['Disponible Inicial'].sum()))
-c2.metric("Disponible Restante", int(df_inv['Disponible Restante'].sum()))
+c1.metric("Stock Total", int(df_inv['Disponible Inicial'].sum()))
+c2.metric("Disponible Neto", int(df_inv['Disponible Restante'].sum()))
 c3.metric("Tus Apartados", int(df_inv[nombre_regional].sum()))
 
 # ============================================
-# 📂 SIDEBAR Y LÓGICA DE GUARDADO
+# SIDEBAR: APARTADOS Y GUARDADO (MÉTODO SEGURO)
 # ============================================
 with st.sidebar:
-    st.subheader("📂 Historial")
-    col_valida = "Nombre Regional" if "Nombre Regional" in df_movs.columns else ("Regional" if "Regional" in df_movs.columns else None)
-    if col_valida:
-        hist = df_movs[df_movs[col_valida] == nombre_regional]
-        st.dataframe(hist, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("🏍️ Apartar unidad")
-
+    st.header("🛒 Panel de Apartado")
+    
     if "modelo" in st.session_state:
         row = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
         disp = int(row['Disponible Restante'])
 
-        st.success(f"{row['Modelo']} ({row['Color']})")
-
-        if st.button("❌ Cancelar selección"):
-            del st.session_state.modelo
-            st.rerun()
-
+        st.info(f"Seleccionado: **{row['Modelo']}**")
+        
         if disp > 0:
-            suc = st.selectbox("Sucursal", df_age.iloc[:, 0].dropna(), key="suc")
-            cant = st.number_input("Cantidad", 1, disp, key="cant")
+            suc = st.selectbox("Sucursal de destino", df_age.iloc[:, 0].dropna())
+            cant = st.number_input("Cantidad a apartar", 1, disp)
 
-            if st.button("Confirmar Apartado", use_container_width=True):
-                # 1. COORDENADAS DE CELDA
-                idx_original = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
+            if st.button("Confirmar Movimiento", use_container_width=True):
+                # 1. LOCALIZACIÓN DE LA CELDA
+                idx_orig = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
                 col_idx = df_inv.columns.get_loc(nombre_regional)
                 
-                fila_sheet = idx_original + 2 
-                col_letter = col_to_letter(col_idx)
-                celda_a1 = f"{col_letter}{fila_sheet}"
+                # Excel/Sheets: Fila +2 (encabezado y base 1). Columna a letra.
+                celda_a1 = f"{col_to_letter(col_idx)}{idx_orig + 2}"
+                nuevo_valor_gerente = int(df_inv.at[idx_orig, nombre_regional] + cant)
 
-                nuevo_valor = int(df_inv.at[idx_original, nombre_regional] + cant)
-
-                # 2. CONEXIÓN DIRECTA CON GSPREAD (SOLUCIÓN AL ERROR)
+                # 2. ESCRITURA MEDIANTE GSPREAD (SOLUCIÓN A FÓRMULAS BORRADAS)
                 try:
-                    # Extraemos las credenciales que ya configuraste para st.connection
-                    creds = conn._instance._service.credentials
-                    client = gspread.authorize(creds) # Autorización manual exitosa
+                    # Extraer credenciales directamente de los secretos
+                    creds_info = st.secrets["connections"]["gsheets"]
+                    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+                    creds = Credentials.from_service_account_info(creds_info, scopes=scope)
+                    client = gspread.authorize(creds)
                     sh = client.open_by_url(URL)
                     
-                    # Actualizar celda sin tocar el resto de la hoja (Protege fórmulas)
+                    # Actualizar solo la celda del Gerente en 'Inventario'
+                    # Esto permite que las fórmulas de las otras columnas sigan funcionando
                     ws_inv = sh.worksheet("Inventario")
-                    ws_inv.update_acell(celda_a1, nuevo_valor)
+                    ws_inv.update_acell(celda_a1, nuevo_valor_gerente)
 
-                    # Registrar movimiento
+                    # Registrar el log en 'Movimientos_Apartados'
                     ws_movs = sh.worksheet("Movimientos_Apartados")
                     ws_movs.append_row([
                         str(uuid.uuid4())[:8].upper(),
@@ -153,47 +147,49 @@ with st.sidebar:
                         row['Año Modelo'], suc, int(cant), nombre_regional
                     ])
 
-                    st.balloons()
-                    st.success(f"✅ Apartado exitoso en celda {celda_a1}")
-                    st.cache_data.clear()
+                    st.success("✅ ¡Actualizado con éxito!")
+                    st.cache_data.clear() # Forzar recarga de datos
                     del st.session_state.modelo
                     st.rerun()
-                    
                 except Exception as e:
-                    st.error(f"Error de conexión: {e}")
+                    st.error(f"Error de escritura: {e}")
+        else:
+            st.error("Sin unidades disponibles.")
+            
+        if st.button("Cancelar"):
+            del st.session_state.modelo
+            st.rerun()
     else:
-        st.info("Selecciona un modelo del inventario")
+        st.write("Selecciona una unidad en la tabla principal para comenzar.")
 
 # ============================================
-# VISTA DE MODELOS
+# CUERPO PRINCIPAL: LISTADO Y GRÁFICOS
 # ============================================
 st.markdown("---")
-st.subheader("Modelos disponibles")
+st.subheader("Inventario Disponible")
 
+# Mostrar modelos como tarjetas simples
 for i, row in df_filtrado.iterrows():
     stock = int(row['Disponible Restante'])
-    color = "🔴" if stock <= 0 else "🟢"
-    col1, col2 = st.columns([5,1])
-    with col1:
-        st.markdown(f"**{row['Modelo']}** ({row['Color']}) | Año: {row['Año Modelo']} | Stock: {color} {stock}")
-    with col2:
-        if st.button("Seleccionar", key=f"btn_{i}"):
+    col_t, col_b = st.columns([4, 1])
+    with col_t:
+        color_bullet = "🟢" if stock > 0 else "🔴"
+        st.write(f"{color_bullet} **{row['Modelo']}** | {row['Color']} | Año: {row['Año Modelo']} | **Disponible: {stock}**")
+    with col_b:
+        if st.button("Apartar", key=f"btn_{i}"):
             st.session_state.modelo = row['Item Number']
             st.rerun()
 
-# ============================================
-# DASHBOARD Y TABLA
-# ============================================
 st.markdown("---")
-st.header("📊 Dashboard de Control")
-c1, c2 = st.columns(2)
-with c1:
-    st.subheader("Inventario Inicial por Modelo")
+st.header("📊 Resumen Ejecutivo")
+c_graph1, c_graph2 = st.columns(2)
+with c_graph1:
+    st.write("**Stock Inicial**")
     st.bar_chart(df_inv.groupby("Modelo")["Disponible Inicial"].sum())
-with c2:
-    st.subheader("Unidades Apartadas")
+with c_graph2:
+    st.write("**Unidades Apartadas**")
     st.bar_chart(df_inv_calc.groupby("Modelo")["Apartado"].sum())
 
 st.markdown("---")
-st.subheader("Vista General de Tabla")
+st.subheader("Detalle General (Solo lectura)")
 st.dataframe(df_inv, use_container_width=True)
