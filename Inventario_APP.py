@@ -5,7 +5,7 @@ from datetime import datetime
 import uuid
 
 # ============================================
-# CONFIGURACIÓN
+# CONFIG
 # ============================================
 st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 
@@ -17,9 +17,10 @@ def load_data():
     inv = conn.read(spreadsheet=URL, worksheet="Inventario")
     usr = conn.read(spreadsheet=URL, worksheet="Usuarios")
     age = conn.read(spreadsheet=URL, worksheet="Agencias")
-    return inv, usr, age
+    movs = conn.read(spreadsheet=URL, worksheet="Movimientos_Apartados")
+    return inv, usr, age, movs
 
-df_inv, df_usr, df_age = load_data()
+df_inv, df_usr, df_age, df_movs = load_data()
 
 # ============================================
 # LOGIN
@@ -28,31 +29,24 @@ if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.subheader("Inicio de Sesión")
-        email_input = st.text_input("Correo")
-
-        if st.button("Iniciar Sesión", use_container_width=True):
-            email_clean = email_input.strip().lower()
-            df_usr['Correo'] = df_usr['Correo'].str.strip().str.lower()
-
-            if email_clean in df_usr['Correo'].values:
-                st.session_state.autenticado = True
-                st.session_state.user_email = email_clean
-                st.rerun()
-            else:
-                st.error("Correo no autorizado.")
+    email = st.text_input("Correo")
+    if st.button("Login"):
+        if email.lower() in df_usr['Correo'].str.lower().values:
+            st.session_state.autenticado = True
+            st.session_state.user_email = email.lower()
+            st.rerun()
+        else:
+            st.error("No autorizado")
     st.stop()
 
 # ============================================
-# USUARIO
+# USER
 # ============================================
 user_email = st.session_state.user_email
-datos_usuario = df_usr[df_usr['Correo'] == user_email].iloc[0]
+datos_usuario = df_usr[df_usr['Correo'].str.lower() == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
 
-gerentes = [g for g in df_usr.iloc[:, 0].dropna().tolist() if g in df_inv.columns]
+gerentes = [g for g in df_usr.iloc[:,0].dropna().tolist() if g in df_inv.columns]
 
 for g in gerentes:
     df_inv[g] = pd.to_numeric(df_inv[g], errors='coerce').fillna(0).astype(int)
@@ -63,204 +57,113 @@ df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes]
 # ============================================
 # HEADER
 # ============================================
-col1, col2 = st.columns([4, 1])
-with col1:
-    st.title(f"🏍️ {nombre_regional}")
-with col2:
-    if st.button("🔄 Actualizar"):
-        st.cache_data.clear()
-        st.rerun()
+st.title(f"🏍️ {nombre_regional}")
 
-st.sidebar.metric("Tus Apartados", int(df_inv[nombre_regional].sum()))
-if st.sidebar.button("Cerrar Sesión"):
-    st.session_state.clear()
-    st.rerun()
+# ============================================
+# 🟢 KPIs USUARIO
+# ============================================
+total_inicial = int(df_inv['Disponible Inicial'].sum())
+total_restante = int(df_inv['Disponible Restante'].sum())
+apartados_usuario = int(df_inv[nombre_regional].sum())
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Disponible Inicial", total_inicial)
+c2.metric("Disponible Restante", total_restante)
+c3.metric("Tus Apartados", apartados_usuario)
+
+st.markdown("---")
+
+# ============================================
+# 🧩 MODELOS DISPONIBLES
+# ============================================
+st.subheader("Modelos disponibles")
+
+for i, row in df_inv.iterrows():
+    stock = int(row['Disponible Restante'])
+    color = "🔴" if stock <= 0 else "🟢"
+
+    col1, col2 = st.columns([5,1])
+
+    with col1:
+        st.markdown(f"""
+        **{row['Modelo']}** ({row['Color']})  
+        Año: {row['Año Modelo']}  
+        Stock: {color} {stock}
+        """)
+
+    with col2:
+        if st.button("Seleccionar", key=f"btn_{i}"):
+            st.session_state.modelo = row['Item Number']
+            st.rerun()
+
+# ============================================
+# FORMULARIO
+# ============================================
+if "modelo" in st.session_state:
+    row = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
+    disp = int(row['Disponible Restante'])
+
+    st.markdown("---")
+    st.subheader(f"Apartar {row['Modelo']}")
+
+    if disp > 0:
+        suc = st.selectbox("Sucursal", df_age.iloc[:,0].dropna())
+        cant = st.number_input("Cantidad", 1, disp)
+
+        if st.button("Confirmar"):
+            idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
+            df_inv.at[idx, nombre_regional] += cant
+            conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
+
+            nuevo = pd.DataFrame([{
+                "ID": str(uuid.uuid4())[:8],
+                "Fecha": datetime.now().strftime("%d/%m/%Y"),
+                "Modelo": row['Modelo'],
+                "Cantidad": cant,
+                "Regional": nombre_regional
+            }])
+
+            df_movs = pd.concat([df_movs, nuevo])
+            conn.update(spreadsheet=URL, worksheet="Movimientos_Apartados", data=df_movs)
+
+            st.success("Registrado")
+            del st.session_state.modelo
+            st.rerun()
+    else:
+        st.error("Sin stock")
 
 # ============================================
 # 📊 DASHBOARD
 # ============================================
-st.markdown("## 📊 Dashboard de Inventario")
-
-total_unidades = int(df_inv['Disponible Inicial'].sum())
-total_restante = int(df_inv['Disponible Restante'].sum())
-total_apartado = total_unidades - total_restante
-modelos_unicos = df_inv['Modelo'].nunique()
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("Inventario Total", total_unidades)
-col2.metric("Disponible", total_restante)
-col3.metric("Apartado", total_apartado)
-col4.metric("Modelos", modelos_unicos)
-
-st.markdown("### 📈 Análisis rápido")
-
-c1, c2 = st.columns(2)
-
-with c1:
-    top_modelos = (
-        df_inv.groupby("Modelo")["Disponible Restante"]
-        .sum()
-        .sort_values(ascending=False)
-        .head(5)
-    )
-    st.bar_chart(top_modelos)
-
-with c2:
-    stock_por_año = df_inv.groupby("Año Modelo")["Disponible Restante"].sum()
-    st.line_chart(stock_por_año)
-
-st.markdown("### 🎨 Stock por color")
-stock_color = df_inv.groupby("Color")["Disponible Restante"].sum()
-st.bar_chart(stock_color)
-
 st.markdown("---")
+st.header("📊 Dashboard")
+
+# Datos para gráfica
+df_chart = df_inv.copy()
+df_chart["Apartado"] = df_chart['Disponible Inicial'] - df_chart['Disponible Restante']
+
+chart = df_chart.set_index("Modelo")[["Disponible Restante", "Apartado"]]
+st.bar_chart(chart)
 
 # ============================================
-# 🧾 FORMULARIO (ARRIBA)
+# 📊 APARTADOS POR REGIONAL
 # ============================================
-if "modelo_seleccionado" in st.session_state:
-    item_id = st.session_state.modelo_seleccionado
-    row = df_inv[df_inv['Item Number'] == item_id].iloc[0]
-    disp_real = int(row['Disponible Restante'])
+st.subheader("Apartados por regional")
 
-    st.success(f"Modelo seleccionado: {row['Modelo']} ({row['Color']})")
-
-    colA, colB = st.columns([3, 1])
-    with colA:
-        st.subheader(f"Apartar unidad {row['Modelo']} - {row['Año Modelo']}")
-    with colB:
-        if st.button("❌ Cancelar selección"):
-            del st.session_state.modelo_seleccionado
-            st.rerun()
-
-    if disp_real <= 0:
-        st.error("Sin stock disponible")
-    else:
-        c1, c2 = st.columns(2)
-
-        with c1:
-            sucursal = st.selectbox(
-                "Sucursal destino",
-                df_age.iloc[:, 0].dropna().tolist()
-            )
-
-        with c2:
-            cant = st.number_input(
-                "Cantidad",
-                min_value=1,
-                max_value=disp_real,
-                step=1
-            )
-
-        if st.button("Confirmar Apartado", use_container_width=True):
-            idx = df_inv.index[df_inv['Item Number'] == item_id][0]
-            df_inv.at[idx, nombre_regional] += cant
-
-            conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
-
-            df_movs = conn.read(spreadsheet=URL, worksheet="Movimientos_Apartados")
-
-            nuevo = pd.DataFrame([{
-                "ID_Apartado": str(uuid.uuid4())[:8].upper(),
-                "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "Item_Number": row['Item Number'],
-                "Modelo": row['Modelo'],
-                "Color": row['Color'],
-                "Año Modelo": row['Año Modelo'],
-                "Sucursal_Destino": sucursal,
-                "Cantidad": int(cant),
-                "Nombre Regional": nombre_regional
-            }])
-
-            df_movs = pd.concat([df_movs, nuevo], ignore_index=True)
-            conn.update(spreadsheet=URL, worksheet="Movimientos_Apartados", data=df_movs)
-
-            st.success("Registro exitoso")
-            del st.session_state.modelo_seleccionado
-            st.cache_data.clear()
-            st.rerun()
-
-st.markdown("---")
+regional_data = df_inv[gerentes].sum()
+st.bar_chart(regional_data)
 
 # ============================================
-# 🎯 FILTROS
-# ============================================
-st.markdown("### 🎯 Filtros")
-
-colf1, colf2, colf3 = st.columns(3)
-
-with colf1:
-    años = sorted(df_inv['Año Modelo'].dropna().unique())
-    filtro_año = st.multiselect("Año", años)
-
-with colf2:
-    colores = sorted(df_inv['Color'].dropna().unique())
-    filtro_color = st.multiselect("Color", colores)
-
-with colf3:
-    sucursales = sorted(df_age.iloc[:, 0].dropna().unique())
-    filtro_agencia = st.multiselect("Agencia destino", sucursales)
-
-df_filtrado = df_inv.copy()
-
-if filtro_año:
-    df_filtrado = df_filtrado[df_filtrado['Año Modelo'].isin(filtro_año)]
-
-if filtro_color:
-    df_filtrado = df_filtrado[df_filtrado['Color'].isin(filtro_color)]
-
-# ============================================
-# 🔎 BUSCADOR
-# ============================================
-busqueda = st.text_input("Buscar modelo")
-
-if busqueda:
-    df_filtrado = df_filtrado[
-        df_filtrado['Modelo'].str.contains(busqueda, case=False, na=False)
-    ]
-
-# ============================================
-# 🧩 LISTA DE MODELOS
-# ============================================
-st.subheader("Modelos disponibles")
-
-for i, row in df_filtrado.iterrows():
-    stock = int(row['Disponible Restante'])
-    color = "🔴" if stock <= 0 else "🟢"
-
-    seleccionado = (
-        "modelo_seleccionado" in st.session_state and
-        st.session_state.modelo_seleccionado == row['Item Number']
-    )
-
-    fondo = "background-color: #e8f0fe; padding:10px; border-radius:10px;" if seleccionado else ""
-
-    col1, col2 = st.columns([5, 1])
-
-    with col1:
-        st.markdown(f"""
-        <div style="{fondo}">
-        <b>{row['Modelo']}</b> ({row['Color']})<br>
-        Año: {row['Año Modelo']}<br>
-        Stock: {color} <b>{stock}</b>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        if st.button("Seleccionar", key=f"btn_{i}"):
-            st.session_state.modelo_seleccionado = row['Item Number']
-            st.rerun()
-
-# ============================================
-# 📊 TABLA FINAL
+# 📋 TABLA INVENTARIO
 # ============================================
 st.markdown("---")
+st.subheader("Inventario")
 
-cols = ['Item Number', 'Modelo', 'Color', 'Año Modelo', 'Disponible Inicial', 'Disponible Restante']
+st.dataframe(df_inv, use_container_width=True)
 
-st.dataframe(
-    df_inv[cols],
-    use_container_width=True,
-    hide_index=True
-)
+# ============================================
+# 📂 HISTORIAL USUARIO
+# ============================================
+with st.expander("📂 Historial de tus apartados"):
+    hist = df_movs[df_movs["Regional"] == nombre_regional]
+    st.dataframe(hist, use_container_width=True)
