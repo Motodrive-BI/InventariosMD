@@ -217,8 +217,20 @@ with st.sidebar:
                     nombre_regional
                 ]
 
-                ws_movs.append_row(nuevo_mov)
+                # ws_movs.append_row(nuevo_mov)
+                # ✅ AGREGA ESTE BLOQUE EN SU LUGAR:
+                # 1. Contamos cuántos datos hay en la Columna A (ID_Apartado)
+                filas_ocupadas = len(ws_movs.col_values(1)) 
+                
+                # 2. Calculamos el índice de la siguiente fila vacía
+                siguiente_fila = filas_ocupadas + 1
+                
+                # 3. Forzamos la inserción en esa fila exacta, empujando todo hacia abajo
+                ws_movs.insert_row(nuevo_mov, index=siguiente_fila)
 
+                st.success("✅ Registrado sin romper fórmulas")
+                
+                del st.session_state.modelo
                 st.success("✅ Registrado sin romper fórmulas")
 
                 del st.session_state.modelo
