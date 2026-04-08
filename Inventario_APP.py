@@ -77,6 +77,46 @@ if st.sidebar.button("Cerrar Sesión"):
     st.rerun()
 
 # ============================================
+# 📊 DASHBOARD
+# ============================================
+st.markdown("## 📊 Dashboard de Inventario")
+
+total_unidades = int(df_inv['Disponible Inicial'].sum())
+total_restante = int(df_inv['Disponible Restante'].sum())
+total_apartado = total_unidades - total_restante
+modelos_unicos = df_inv['Modelo'].nunique()
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Inventario Total", total_unidades)
+col2.metric("Disponible", total_restante)
+col3.metric("Apartado", total_apartado)
+col4.metric("Modelos", modelos_unicos)
+
+st.markdown("### 📈 Análisis rápido")
+
+c1, c2 = st.columns(2)
+
+with c1:
+    top_modelos = (
+        df_inv.groupby("Modelo")["Disponible Restante"]
+        .sum()
+        .sort_values(ascending=False)
+        .head(5)
+    )
+    st.bar_chart(top_modelos)
+
+with c2:
+    stock_por_año = df_inv.groupby("Año Modelo")["Disponible Restante"].sum()
+    st.line_chart(stock_por_año)
+
+st.markdown("### 🎨 Stock por color")
+stock_color = df_inv.groupby("Color")["Disponible Restante"].sum()
+st.bar_chart(stock_color)
+
+st.markdown("---")
+
+# ============================================
 # 🧾 FORMULARIO (ARRIBA)
 # ============================================
 if "modelo_seleccionado" in st.session_state:
@@ -144,11 +184,37 @@ if "modelo_seleccionado" in st.session_state:
 st.markdown("---")
 
 # ============================================
-# 🔎 FILTRO SIMPLE (PLUS PRO)
+# 🎯 FILTROS
+# ============================================
+st.markdown("### 🎯 Filtros")
+
+colf1, colf2, colf3 = st.columns(3)
+
+with colf1:
+    años = sorted(df_inv['Año Modelo'].dropna().unique())
+    filtro_año = st.multiselect("Año", años)
+
+with colf2:
+    colores = sorted(df_inv['Color'].dropna().unique())
+    filtro_color = st.multiselect("Color", colores)
+
+with colf3:
+    sucursales = sorted(df_age.iloc[:, 0].dropna().unique())
+    filtro_agencia = st.multiselect("Agencia destino", sucursales)
+
+df_filtrado = df_inv.copy()
+
+if filtro_año:
+    df_filtrado = df_filtrado[df_filtrado['Año Modelo'].isin(filtro_año)]
+
+if filtro_color:
+    df_filtrado = df_filtrado[df_filtrado['Color'].isin(filtro_color)]
+
+# ============================================
+# 🔎 BUSCADOR
 # ============================================
 busqueda = st.text_input("Buscar modelo")
 
-df_filtrado = df_inv.copy()
 if busqueda:
     df_filtrado = df_filtrado[
         df_filtrado['Modelo'].str.contains(busqueda, case=False, na=False)
