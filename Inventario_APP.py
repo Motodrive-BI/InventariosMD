@@ -23,6 +23,16 @@ def load_data():
 df_inv, df_usr, df_age, df_movs = load_data()
 
 # ============================================
+# 🔤 FUNCIÓN PARA COLUMNAS EXCEL (AA, AB...)
+# ============================================
+def col_to_letter(col_idx):
+    letter = ""
+    while col_idx >= 0:
+        letter = chr(col_idx % 26 + 65) + letter
+        col_idx = col_idx // 26 - 1
+    return letter
+
+# ============================================
 # LOGIN
 # ============================================
 if 'autenticado' not in st.session_state:
@@ -53,6 +63,8 @@ for g in gerentes:
 
 df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
 df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes].sum(axis=1)).astype(int)
+
+# Dataframe solo para dashboard (NO se guarda)
 df_inv_calc = df_inv.copy()
 df_inv_calc['Apartado'] = df_inv_calc['Disponible Inicial'] - df_inv_calc['Disponible Restante']
 
@@ -111,7 +123,6 @@ c3.metric("Tus Apartados", apartados_usuario)
 # ============================================
 with st.sidebar:
 
-    # HISTORIAL
     st.subheader("📂 Historial")
 
     col_valida = None
@@ -125,7 +136,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # FORMULARIO
     st.subheader("🏍️ Apartar unidad")
 
     if "modelo" in st.session_state:
@@ -140,15 +150,28 @@ with st.sidebar:
 
         if disp > 0:
             suc = st.selectbox("Sucursal", df_age.iloc[:, 0].dropna(), key="suc")
-
             cant = st.number_input("Cantidad", 1, disp, key="cant")
 
             if st.button("Confirmar Apartado", use_container_width=True):
+
+                # 🔥 ACTUALIZACIÓN SOLO DE CELDA
                 idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
-                df_inv.at[idx, nombre_regional] += cant
+                col_idx = df_inv.columns.get_loc(nombre_regional)
 
-                conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
+                fila_sheet = idx + 2
+                col_letter = col_to_letter(col_idx)
 
+                valor_actual = df_inv.at[idx, nombre_regional]
+                nuevo_valor = valor_actual + cant
+
+                conn.update(
+                    spreadsheet=URL,
+                    worksheet="Inventario",
+                    data=pd.DataFrame({nombre_regional: [nuevo_valor]}),
+                    start=f"{col_letter}{fila_sheet}"
+                )
+
+                # MOVIMIENTOS
                 nuevo = pd.DataFrame([{
                     "ID_Apartado": str(uuid.uuid4())[:8].upper(),
                     "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -161,7 +184,15 @@ with st.sidebar:
                     "Nombre Regional": nombre_regional
                 }])
 
-                df_movs = pd.concat([df_movs, nuevo])
+                columnas_correctas = [
+                    "ID_Apartado", "Fecha", "Item_Number", "Modelo",
+                    "Color", "Año Modelo", "Sucursal_Destino",
+                    "Cantidad", "Nombre Regional"
+                ]
+
+                df_movs = df_movs[columnas_correctas]
+                df_movs = pd.concat([df_movs, nuevo], ignore_index=True)
+
                 conn.update(spreadsheet=URL, worksheet="Movimientos_Apartados", data=df_movs)
 
                 st.success("✅ Registrado")
@@ -207,13 +238,11 @@ c1, c2 = st.columns(2)
 
 with c1:
     st.subheader("Disponible Inicial")
-    chart1 = df_inv.groupby("Modelo")["Disponible Inicial"].sum()
-    st.bar_chart(chart1)
+    st.bar_chart(df_inv.groupby("Modelo")["Disponible Inicial"].sum())
 
 with c2:
     st.subheader("Apartados")
-    chart2 = df_inv_calc.groupby("Modelo")["Apartado"].sum()
-    st.bar_chart(chart2)
+    st.bar_chart(df_inv_calc.groupby("Modelo")["Apartado"].sum())
 
 # ============================================
 # 📋 TABLA
