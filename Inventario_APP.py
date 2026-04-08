@@ -163,18 +163,15 @@ c3.metric("Tus Apartados", apartados_usuario)
 # ============================================
 # SIDEBAR
 # ============================================
+# ============================================
+# SIDEBAR
+# ============================================
 with st.sidebar:
 
-    st.subheader("📂 Historial")
+    st.subheader("📂 Historial Acumulado (Todos)")
 
-    col_valida = None
-    for col in ["Nombre Regional", "Regional"]:
-        if col in df_movs.columns:
-            col_valida = col
-
-    if col_valida:
-        hist = df_movs[df_movs[col_valida] == nombre_regional]
-        st.dataframe(hist, use_container_width=True)
+    # Mostrar TODO el registro de Movimientos_Apartados sin importar el gerente
+    st.dataframe(df_movs, use_container_width=True)
 
     st.markdown("---")
 
@@ -207,6 +204,7 @@ with st.sidebar:
 
                 ws_inv.update_cell(fila_sheet, col_sheet, nuevo_valor)
 
+                # ¡Esta parte de tu código ya registra el acumulado perfectamente!
                 nuevo_mov = [
                     str(uuid.uuid4())[:8].upper(),
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -230,7 +228,6 @@ with st.sidebar:
             st.error("🚫 Sin stock")
     else:
         st.info("Selecciona un modelo")
-
 # ============================================
 # MODELOS
 # ============================================
