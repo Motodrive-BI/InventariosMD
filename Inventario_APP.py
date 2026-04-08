@@ -163,14 +163,11 @@ c3.metric("Tus Apartados", apartados_usuario)
 # ============================================
 # SIDEBAR
 # ============================================
-# ============================================
-# SIDEBAR
-# ============================================
 with st.sidebar:
 
     st.subheader("📂 Historial Acumulado (Todos)")
 
-    # Mostrar TODO el registro de Movimientos_Apartados sin importar el gerente
+    # MODIFICACIÓN: Muestra el historial completo sin filtrar por gerente
     st.dataframe(df_movs, use_container_width=True)
 
     st.markdown("---")
@@ -184,7 +181,9 @@ with st.sidebar:
         st.success(f"{row['Modelo']} ({row['Color']})")
 
         if st.button("❌ Cancelar selección"):
-            del st.session_state.modelo
+            # MODIFICACIÓN: Borrado seguro de session_state
+            if 'modelo' in st.session_state:
+                del st.session_state.modelo
             st.rerun()
 
         if disp > 0:
@@ -204,7 +203,6 @@ with st.sidebar:
 
                 ws_inv.update_cell(fila_sheet, col_sheet, nuevo_valor)
 
-                # ¡Esta parte de tu código ya registra el acumulado perfectamente!
                 nuevo_mov = [
                     str(uuid.uuid4())[:8].upper(),
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -217,29 +215,23 @@ with st.sidebar:
                     nombre_regional
                 ]
 
-                # ws_movs.append_row(nuevo_mov)
-                # ✅ AGREGA ESTE BLOQUE EN SU LUGAR:
-                # 1. Contamos cuántos datos hay en la Columna A (ID_Apartado)
+                # MODIFICACIÓN: Inserción forzada calculando la última fila vacía
                 filas_ocupadas = len(ws_movs.col_values(1)) 
-                
-                # 2. Calculamos el índice de la siguiente fila vacía
                 siguiente_fila = filas_ocupadas + 1
-                
-                # 3. Forzamos la inserción en esa fila exacta, empujando todo hacia abajo
                 ws_movs.insert_row(nuevo_mov, index=siguiente_fila)
 
                 st.success("✅ Registrado sin romper fórmulas")
-                
-                del st.session_state.modelo
-                st.success("✅ Registrado sin romper fórmulas")
 
-                del st.session_state.modelo
+                # MODIFICACIÓN: Borrado seguro de session_state
+                if 'modelo' in st.session_state:
+                    del st.session_state.modelo
                 st.cache_data.clear()
                 st.rerun()
         else:
             st.error("🚫 Sin stock")
     else:
         st.info("Selecciona un modelo")
+
 # ============================================
 # MODELOS
 # ============================================
