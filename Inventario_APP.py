@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime
 import uuid
 
-# 🔥 NUEVO
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -18,14 +17,14 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 URL = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
 
 # ============================================
-# 🔥 CONEXIÓN GSPREAD (CORREGIDO)
+# GSPREAD
 # ============================================
 @st.cache_resource
 def connect_gspread():
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
 
     creds = Credentials.from_service_account_info(
-        st.secrets["connections"]["gsheets"],  # ✅ CORREGIDO
+        st.secrets["connections"]["gsheets"],
         scopes=scope
     )
 
@@ -52,14 +51,10 @@ def load_data():
 df_inv, df_usr, df_age, df_movs = load_data()
 
 # ============================================
-# 🔤 FUNCIÓN COLUMNAS
+# 🔧 LIMPIEZA ROBUSTA (NUEVO)
 # ============================================
-def col_to_letter(col_idx):
-    letter = ""
-    while col_idx >= 0:
-        letter = chr(col_idx % 26 + 65) + letter
-        col_idx = col_idx // 26 - 1
-    return letter
+def clean_unique(series):
+    return sorted(series.dropna().astype(str).str.strip().unique())
 
 # ============================================
 # LOGIN
@@ -70,7 +65,7 @@ if 'autenticado' not in st.session_state:
 if not st.session_state.autenticado:
     email = st.text_input("Correo")
     if st.button("Login"):
-        if email.lower() in df_usr['Correo'].str.lower().values:
+        if email.lower() in df_usr['Correo'].astype(str).str.lower().values:
             st.session_state.autenticado = True
             st.session_state.user_email = email.lower()
             st.rerun()
@@ -82,7 +77,7 @@ if not st.session_state.autenticado:
 # USER
 # ============================================
 user_email = st.session_state.user_email
-datos_usuario = df_usr[df_usr['Correo'].str.lower() == user_email].iloc[0]
+datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
 
 gerentes = [g for g in df_usr.iloc[:,0].dropna().tolist() if g in df_inv.columns]
@@ -107,27 +102,35 @@ with colf1:
     busqueda = st.text_input("Buscar modelo")
 
 with colf2:
-    filtro_modelo = st.multiselect("Modelo", sorted(df_inv['Modelo'].unique()))
+    filtro_modelo = st.multiselect("Modelo", clean_unique(df_inv['Modelo']))
 
 with colf3:
-    filtro_color = st.multiselect("Color", sorted(df_inv['Color'].unique()))
+    filtro_color = st.multiselect("Color", clean_unique(df_inv['Color']))
 
 with colf4:
-    filtro_año = st.multiselect("Año", sorted(df_inv['Año Modelo'].unique()))
+    filtro_año = st.multiselect("Año", clean_unique(df_inv['Año Modelo']))
 
 df_filtrado = df_inv.copy()
 
 if busqueda:
-    df_filtrado = df_filtrado[df_filtrado['Modelo'].str.contains(busqueda, case=False, na=False)]
+    df_filtrado = df_filtrado[
+        df_filtrado['Modelo'].astype(str).str.contains(busqueda, case=False, na=False)
+    ]
 
 if filtro_modelo:
-    df_filtrado = df_filtrado[df_filtrado['Modelo'].isin(filtro_modelo)]
+    df_filtrado = df_filtrado[
+        df_filtrado['Modelo'].astype(str).isin(filtro_modelo)
+    ]
 
 if filtro_color:
-    df_filtrado = df_filtrado[df_filtrado['Color'].isin(filtro_color)]
+    df_filtrado = df_filtrado[
+        df_filtrado['Color'].astype(str).isin(filtro_color)
+    ]
 
 if filtro_año:
-    df_filtrado = df_filtrado[df_filtrado['Año Modelo'].isin(filtro_año)]
+    df_filtrado = df_filtrado[
+        df_filtrado['Año Modelo'].astype(str).isin(filtro_año)
+    ]
 
 # ============================================
 # HEADER
@@ -182,9 +185,6 @@ with st.sidebar:
 
             if st.button("Confirmar Apartado", use_container_width=True):
 
-                # ============================================
-                # 🔥 UPDATE POR CELDA (SIN BORRAR FÓRMULAS)
-                # ============================================
                 idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
                 col_idx = df_inv.columns.get_loc(nombre_regional)
 
@@ -196,9 +196,6 @@ with st.sidebar:
 
                 ws_inv.update_cell(fila_sheet, col_sheet, nuevo_valor)
 
-                # ============================================
-                # MOVIMIENTOS
-                # ============================================
                 nuevo_mov = [
                     str(uuid.uuid4())[:8].upper(),
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
