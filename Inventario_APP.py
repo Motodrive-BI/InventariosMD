@@ -53,7 +53,8 @@ for g in gerentes:
 
 df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
 df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes].sum(axis=1)).astype(int)
-
+df_inv_calc = df_inv.copy()
+df_inv_calc['Apartado'] = df_inv_calc['Disponible Inicial'] - df_inv_calc['Disponible Restante']
 
 # ============================================
 # 🔍 BUSCADOR + FILTROS
@@ -211,7 +212,7 @@ with c1:
 
 with c2:
     st.subheader("Apartados")
-    chart2 = df_inv.groupby("Modelo")["Apartado"].sum()
+    chart2 = df_inv_calc.groupby("Modelo")["Apartado"].sum()
     st.bar_chart(chart2)
 
 # ============================================
