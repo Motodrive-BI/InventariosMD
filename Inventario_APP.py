@@ -56,7 +56,7 @@ df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes]
 df_inv['Apartado'] = df_inv['Disponible Inicial'] - df_inv['Disponible Restante']
 
 # ============================================
-# 🔍 BUSCADOR + FILTROS (ARRIBA)
+# 🔍 BUSCADOR + FILTROS
 # ============================================
 st.markdown("## 🔍 Búsqueda y filtros")
 
@@ -106,9 +106,11 @@ c2.metric("Disponible Restante", total_restante)
 c3.metric("Tus Apartados", apartados_usuario)
 
 # ============================================
-# 📂 HISTORIAL LATERAL
+# 📂 SIDEBAR (HISTORIAL + FORMULARIO)
 # ============================================
 with st.sidebar:
+
+    # HISTORIAL
     st.subheader("📂 Historial")
 
     col_valida = None
@@ -119,8 +121,52 @@ with st.sidebar:
     if col_valida:
         hist = df_movs[df_movs[col_valida] == nombre_regional]
         st.dataframe(hist, use_container_width=True)
+
+    st.markdown("---")
+
+    # FORMULARIO
+    st.subheader("🏍️ Apartar unidad")
+
+    if "modelo" in st.session_state:
+        row = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
+        disp = int(row['Disponible Restante'])
+
+        st.success(f"{row['Modelo']} ({row['Color']})")
+
+        if st.button("❌ Cancelar selección"):
+            del st.session_state.modelo
+            st.rerun()
+
+        if disp > 0:
+            suc = st.selectbox("Sucursal", df_age.iloc[:, 0].dropna(), key="suc")
+
+            cant = st.number_input("Cantidad", 1, disp, key="cant")
+
+            if st.button("Confirmar Apartado", use_container_width=True):
+                idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
+                df_inv.at[idx, nombre_regional] += cant
+
+                conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
+
+                nuevo = pd.DataFrame([{
+                    "ID": str(uuid.uuid4())[:8],
+                    "Fecha": datetime.now().strftime("%d/%m/%Y"),
+                    "Modelo": row['Modelo'],
+                    "Cantidad": cant,
+                    "Nombre Regional": nombre_regional
+                }])
+
+                df_movs = pd.concat([df_movs, nuevo])
+                conn.update(spreadsheet=URL, worksheet="Movimientos_Apartados", data=df_movs)
+
+                st.success("✅ Registrado")
+                del st.session_state.modelo
+                st.cache_data.clear()
+                st.rerun()
+        else:
+            st.error("🚫 Sin stock")
     else:
-        st.warning("Sin columna válida")
+        st.info("Selecciona un modelo")
 
 # ============================================
 # 🧩 MODELOS
@@ -145,43 +191,6 @@ for i, row in df_filtrado.iterrows():
         if st.button("Seleccionar", key=f"btn_{i}"):
             st.session_state.modelo = row['Item Number']
             st.rerun()
-
-# ============================================
-# FORMULARIO
-# ============================================
-if "modelo" in st.session_state:
-    row = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
-    disp = int(row['Disponible Restante'])
-
-    st.markdown("---")
-    st.subheader(f"Apartar {row['Modelo']}")
-
-    if disp > 0:
-        suc = st.selectbox("Sucursal", df_age.iloc[:,0].dropna())
-        cant = st.number_input("Cantidad", 1, disp)
-
-        if st.button("Confirmar"):
-            idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
-            df_inv.at[idx, nombre_regional] += cant
-            conn.update(spreadsheet=URL, worksheet="Inventario", data=df_inv)
-
-            nuevo = pd.DataFrame([{
-                "ID": str(uuid.uuid4())[:8],
-                "Fecha": datetime.now().strftime("%d/%m/%Y"),
-                "Modelo": row['Modelo'],
-                "Cantidad": cant,
-                "Nombre Regional": nombre_regional
-            }])
-
-            df_movs = pd.concat([df_movs, nuevo])
-            conn.update(spreadsheet=URL, worksheet="Movimientos_Apartados", data=df_movs)
-
-            st.success("Registrado")
-            del st.session_state.modelo
-            st.cache_data.clear()
-            st.rerun()
-    else:
-        st.error("Sin stock")
 
 # ============================================
 # 📊 DASHBOARD
