@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 import uuid
 
-# ✅ NUEVO
+# 🔥 NUEVO
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -18,14 +18,14 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 URL = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
 
 # ============================================
-# 🔥 CONEXIÓN GSPREAD (NUEVO)
+# 🔥 CONEXIÓN GSPREAD (CORREGIDO)
 # ============================================
 @st.cache_resource
 def connect_gspread():
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
 
     creds = Credentials.from_service_account_info(
-        st.secrets["connections"]["gsheets"],
+        st.secrets["connections"]["gsheets"],  # ✅ CORREGIDO
         scopes=scope
     )
 
@@ -52,7 +52,7 @@ def load_data():
 df_inv, df_usr, df_age, df_movs = load_data()
 
 # ============================================
-# 🔤 FUNCIÓN COLUMNAS (A, B, C...)
+# 🔤 FUNCIÓN COLUMNAS
 # ============================================
 def col_to_letter(col_idx):
     letter = ""
@@ -97,20 +97,84 @@ df_inv_calc = df_inv.copy()
 df_inv_calc['Apartado'] = df_inv_calc['Disponible Inicial'] - df_inv_calc['Disponible Restante']
 
 # ============================================
-# UI
+# FILTROS
+# ============================================
+st.markdown("## 🔍 Búsqueda y filtros")
+
+colf1, colf2, colf3, colf4 = st.columns(4)
+
+with colf1:
+    busqueda = st.text_input("Buscar modelo")
+
+with colf2:
+    filtro_modelo = st.multiselect("Modelo", sorted(df_inv['Modelo'].unique()))
+
+with colf3:
+    filtro_color = st.multiselect("Color", sorted(df_inv['Color'].unique()))
+
+with colf4:
+    filtro_año = st.multiselect("Año", sorted(df_inv['Año Modelo'].unique()))
+
+df_filtrado = df_inv.copy()
+
+if busqueda:
+    df_filtrado = df_filtrado[df_filtrado['Modelo'].str.contains(busqueda, case=False, na=False)]
+
+if filtro_modelo:
+    df_filtrado = df_filtrado[df_filtrado['Modelo'].isin(filtro_modelo)]
+
+if filtro_color:
+    df_filtrado = df_filtrado[df_filtrado['Color'].isin(filtro_color)]
+
+if filtro_año:
+    df_filtrado = df_filtrado[df_filtrado['Año Modelo'].isin(filtro_año)]
+
+# ============================================
+# HEADER
 # ============================================
 st.title(f"🏍️ {nombre_regional}")
+
+# ============================================
+# KPIs
+# ============================================
+total_inicial = int(df_inv['Disponible Inicial'].sum())
+total_restante = int(df_inv['Disponible Restante'].sum())
+apartados_usuario = int(df_inv[nombre_regional].sum())
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Disponible Inicial", total_inicial)
+c2.metric("Disponible Restante", total_restante)
+c3.metric("Tus Apartados", apartados_usuario)
 
 # ============================================
 # SIDEBAR
 # ============================================
 with st.sidebar:
 
+    st.subheader("📂 Historial")
+
+    col_valida = None
+    for col in ["Nombre Regional", "Regional"]:
+        if col in df_movs.columns:
+            col_valida = col
+
+    if col_valida:
+        hist = df_movs[df_movs[col_valida] == nombre_regional]
+        st.dataframe(hist, use_container_width=True)
+
+    st.markdown("---")
+
     st.subheader("🏍️ Apartar unidad")
 
     if "modelo" in st.session_state:
         row = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
         disp = int(row['Disponible Restante'])
+
+        st.success(f"{row['Modelo']} ({row['Color']})")
+
+        if st.button("❌ Cancelar selección"):
+            del st.session_state.modelo
+            st.rerun()
 
         if disp > 0:
             suc = st.selectbox("Sucursal", df_age.iloc[:, 0].dropna(), key="suc")
@@ -119,23 +183,21 @@ with st.sidebar:
             if st.button("Confirmar Apartado", use_container_width=True):
 
                 # ============================================
-                # 🔥 UPDATE REAL POR CELDA (AQUÍ ESTÁ LA MAGIA)
+                # 🔥 UPDATE POR CELDA (SIN BORRAR FÓRMULAS)
                 # ============================================
-
                 idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
                 col_idx = df_inv.columns.get_loc(nombre_regional)
 
-                fila_sheet = idx + 2  # +2 header
-                col_sheet = col_idx + 1  # 1-index
+                fila_sheet = idx + 2
+                col_sheet = col_idx + 1
 
                 valor_actual = int(df_inv.at[idx, nombre_regional])
                 nuevo_valor = valor_actual + cant
 
-                # ✅ SOLO ACTUALIZA UNA CELDA (NO BORRA FÓRMULAS)
                 ws_inv.update_cell(fila_sheet, col_sheet, nuevo_valor)
 
                 # ============================================
-                # MOVIMIENTOS (append sin borrar)
+                # MOVIMIENTOS
                 # ============================================
                 nuevo_mov = [
                     str(uuid.uuid4())[:8].upper(),
@@ -160,3 +222,50 @@ with st.sidebar:
             st.error("🚫 Sin stock")
     else:
         st.info("Selecciona un modelo")
+
+# ============================================
+# MODELOS
+# ============================================
+st.markdown("---")
+st.subheader("Modelos disponibles")
+
+for i, row in df_filtrado.iterrows():
+    stock = int(row['Disponible Restante'])
+    color = "🔴" if stock <= 0 else "🟢"
+
+    col1, col2 = st.columns([5,1])
+
+    with col1:
+        st.markdown(f"""
+        **{row['Modelo']}** ({row['Color']})  
+        Año: {row['Año Modelo']}  
+        Stock: {color} {stock}
+        """)
+
+    with col2:
+        if st.button("Seleccionar", key=f"btn_{i}"):
+            st.session_state.modelo = row['Item Number']
+            st.rerun()
+
+# ============================================
+# DASHBOARD
+# ============================================
+st.markdown("---")
+st.header("📊 Dashboard")
+
+c1, c2 = st.columns(2)
+
+with c1:
+    st.subheader("Disponible Inicial")
+    st.bar_chart(df_inv.groupby("Modelo")["Disponible Inicial"].sum())
+
+with c2:
+    st.subheader("Apartados")
+    st.bar_chart(df_inv_calc.groupby("Modelo")["Apartado"].sum())
+
+# ============================================
+# TABLA
+# ============================================
+st.markdown("---")
+st.subheader("Inventario")
+st.dataframe(df_inv, use_container_width=True)
