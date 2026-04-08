@@ -165,5 +165,5 @@ st.dataframe(df_inv, use_container_width=True)
 # 📂 HISTORIAL USUARIO
 # ============================================
 with st.expander("📂 Historial de tus apartados"):
-    hist = df_movs[df_movs["Regional"] == nombre_regional]
+    hist = df_movs[df_movs["Nombre Regional"] == nombre_regional]
     st.dataframe(hist, use_container_width=True)
