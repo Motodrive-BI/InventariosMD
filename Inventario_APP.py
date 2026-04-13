@@ -209,7 +209,7 @@ with c4:
             st.rerun()
     with btn_col2:
         if st.button("🚫 Salir", use_container_width=True):
-             st.query_params.clear() # Borra el usuario de la URL
+            st.query_params.clear() # Borra el usuario de la URL
             for key in st.session_state.keys():
                 del st.session_state[key]
             st.rerun()
