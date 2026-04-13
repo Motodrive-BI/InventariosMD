@@ -5,6 +5,7 @@ from datetime import datetime
 import uuid
 import gspread
 from google.oauth2.service_account import Credentials
+import extra_streamlit_components as cookie_manager  # NUEVA LÍNEA
 
 # ============================================
 # CONFIGURACIÓN DE PÁGINA
@@ -37,7 +38,6 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* Estilo del botón y del mensaje de agotado */
     div.stButton > button {
         border-radius: 0px 0px 8px 8px !important;
         margin-top: -2px;
@@ -54,7 +54,6 @@ st.markdown("""
         color: #ff4d4d !important;
     }
 
-    /* Mensaje de Agotado con el mismo estilo del botón pero gris */
     .sold-out-msg {
         background-color: #424949 !important;
         color: #bdc3c7 !important;
@@ -133,16 +132,7 @@ def ventana_apartar(item_row, nombre_regional, user_email):
                     item_row['Item Number'], item_row['Modelo'], item_row['Color'],
                     item_row['Año Modelo'], suc_dest, int(cant), user_email
                 ]
-                # Definir el nuevo movimiento
-                nuevo_mov = [
-                    str(uuid.uuid4())[:8].upper(),
-                    datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    item_row['Item Number'], item_row['Modelo'], item_row['Color'],
-                    item_row['Año Modelo'], suc_dest, int(cant), user_email
-                ]
                 
-                # REEMPLAZO: En lugar de append_row, insertamos en la fila siguiente a la última con datos
-                # Esto fuerza a gspread a buscar la primera fila realmente vacía
                 ws_movs.append_row(nuevo_mov, table_range="A1")
                 
                 st.success("✅ Apartado registrado con éxito")
@@ -154,52 +144,71 @@ def ventana_apartar(item_row, nombre_regional, user_email):
             st.rerun()
 
 # ============================================
-# LOGIN Y PROCESAMIENTO
+# GESTIÓN DE SESIÓN (COOKIES Y LOGIN)
 # ============================================
+cookie_manager_inst = cookie_manager.CookieManager()
+saved_user = cookie_manager_inst.get("user_session_id")
+
 if 'autenticado' not in st.session_state:
-    st.session_state.autenticado = False
+    if saved_user:
+        st.session_state.autenticado = True
+        st.session_state.user_email = saved_user
+    else:
+        st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
     st.markdown("### Acceso al Sistema")
     email_input = st.text_input("Correo Electrónico")
-    pass_input = st.text_input("Contraseña", type="password") # Campo de contraseña oculto
+    pass_input = st.text_input("Contraseña", type="password")
     
     if st.button("Ingresar"):
-        # Normalizamos entrada para evitar errores de mayúsculas/espacios
         user_row = df_usr[df_usr['Correo'].astype(str).str.lower() == email_input.lower().strip()]
         
         if not user_row.empty:
-            # Verificamos si la contraseña coincide (ajusta 'Password' al nombre real de tu columna)
             db_password = str(user_row.iloc[0]['Password']).strip()
             
             if pass_input == db_password:
                 st.session_state.autenticado = True
                 st.session_state.user_email = email_input.lower().strip()
+                # Guardar cookie para persistencia (equipo recordado)
+                cookie_manager_inst.set("user_session_id", st.session_state.user_email, expires_at=None)
                 st.rerun()
             else:
                 st.error("Contraseña incorrecta")
         else:
             st.error("Usuario no encontrado")
     st.stop()
+
+# Recuperar datos del usuario una vez autenticado
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
-# Aquí definimos la variable que usa el resto de la app
 nombre_regional = datos_usuario.iloc[0]
+
 # ============================================
 # INTERFAZ PRINCIPAL
 # ============================================
 st.title("Sistema de Apartado de Inventario MD:")
-st.header(f"BIENVENIDO – {nombre_regional}") # Usa la variable que definiste arriba
+st.header(f"BIENVENIDO – {nombre_regional}")
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Inventario Inicial:", f"{int(df_inv['Disponible Inicial'].sum()):,}")
 c2.metric("Inventario Restante:", f"{int(df_inv['Disponible Restante'].sum()):,}")
 c3.metric("Tus Apartados:", f"{int(df_inv[nombre_regional].sum()):,}" if nombre_regional in df_inv.columns else "0")
+
 with c4:
     st.write(" ")
-    if st.button("🔄 Actualizar Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        if st.button("🔄 Actualizar", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    with btn_col2:
+        if st.button("🚫 Salir", use_container_width=True):
+            # Eliminar cookie y resetear estado
+            cookie_manager_inst.delete("user_session_id")
+            for key in st.session_state.keys():
+                del st.session_state[key]
+            st.rerun()
 
 st.write("---")
 
@@ -210,7 +219,6 @@ def reset_filtros():
     st.session_state.f_col = []
     st.session_state.f_ano = []
 
-# Se agrega una quinta columna para el botón de limpieza
 colf1, colf2, colf3, colf4, colf5 = st.columns([2, 2, 2, 2, 1.5])
 df_f = df_inv.copy()
 
@@ -219,7 +227,6 @@ with colf2: mod = st.multiselect("Filtro Modelo:", sorted(df_f['Modelo'].unique(
 with colf3: col = st.multiselect("Filtro Color:", sorted(df_f['Color'].unique()), key="f_col")
 with colf4: ano = st.multiselect("Filtro Año:", sorted(df_f['Año Modelo'].unique().astype(str)), key="f_ano")
 with colf5: 
-    # Añadimos un pequeño margen superior para alinear el botón con las cajas de texto
     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
     st.button("🧹 Limpiar Filtros", on_click=reset_filtros, use_container_width=True)
 
@@ -250,7 +257,6 @@ for row_data in rows:
                 </div>
             """, unsafe_allow_html=True)
             
-            # Validación de Inventario Agotado
             if disp_restante > 0:
                 if st.button("Apartar", key=f"btn_{idx}", use_container_width=True):
                     ventana_apartar(row, nombre_regional, user_email)
@@ -263,7 +269,7 @@ for row_data in rows:
 st.write("---")
 st.subheader("Resumen de Movimientos:")
 
-col_formato = 'Cantidad Apartada' # <--- ESTA ES LA LÍNEA A CAMBIAR
+col_formato = 'Cantidad Apartada'
 
 if col_formato in df_movs.columns:
     df_styled = df_movs.style.format(subset=[col_formato], formatter="{:,}")
