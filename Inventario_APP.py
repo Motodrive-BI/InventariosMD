@@ -146,7 +146,18 @@ def ventana_apartar(item_row, nombre_regional, user_email):
                     item_row['Item Number'], item_row['Modelo'], item_row['Color'],
                     item_row['Año Modelo'], suc_dest, int(cant), user_email
                 ]
-                ws_movs.append_row(nuevo_mov)
+                # Definir el nuevo movimiento
+                nuevo_mov = [
+                    str(uuid.uuid4())[:8].upper(),
+                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    item_row['Item Number'], item_row['Modelo'], item_row['Color'],
+                    item_row['Año Modelo'], suc_dest, int(cant), user_email
+                ]
+                
+                # REEMPLAZO: En lugar de append_row, insertamos en la fila siguiente a la última con datos
+                # Esto fuerza a gspread a buscar la primera fila realmente vacía
+                ws_movs.append_row(nuevo_mov, table_range="A1")
+                
                 st.success("✅ Apartado registrado con éxito")
                 st.cache_data.clear()
                 st.rerun()
