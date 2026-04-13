@@ -125,7 +125,8 @@ def ventana_apartar(item_row, nombre_regional, user_email):
         with col_v1:
             if st.button("Cancelar", use_container_width=True):
                 st.rerun()
-               
+        with col_v2:
+            if st.button("Confirmar", type="primary", use_container_width=True):       
                 nuevo_mov = [
                     str(uuid.uuid4())[:8].upper(),
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
