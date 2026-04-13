@@ -143,59 +143,66 @@ def ventana_apartar(item_row, nombre_regional, user_email):
         if st.button("Cerrar", use_container_width=True):
             st.rerun()
 # ============================================
-# GESTIÓN DE SESIÓN (COOKIES Y LOGIN) - CORREGIDO
+# GESTIÓN DE SESIÓN (VERSIÓN DEFINITIVA)
 # ============================================
 import time
 
 cookie_manager_inst = cookie_manager.CookieManager()
 
-# 1. Pequeña pausa técnica: 
-# Las cookies tardan un poco en viajar del navegador a Python al refrescar.
-if 'verificado_inicial' not in st.session_state:
-    time.sleep(0.6)  # Pausa de 600ms solo al cargar la app
-    st.session_state.verificado_inicial = True
+# 1. Aseguramos que el gestor de cookies esté listo
+# Si no esperamos un poco, al refrescar siempre dirá que no hay sesión
+if 'cookie_ready' not in st.session_state:
+    time.sleep(0.8) # Un poco más de tiempo para conexiones lentas
+    st.session_state.cookie_ready = True
 
+# Intentamos obtener la cookie
 saved_user = cookie_manager_inst.get("user_session_id")
 
-# 2. Inicializar estado de autenticación
+# 2. Inicializar estado de autenticación si no existe
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# 3. Lógica de Auto-Login (Si existe la cookie y no estamos autenticados en el state)
+# 3. CRUCIAL: Si existe la cookie pero el estado dice que no estamos autenticados,
+# actualizamos el estado y forzamos reinicio para entrar.
 if saved_user and not st.session_state.autenticado:
     st.session_state.autenticado = True
     st.session_state.user_email = saved_user
     st.rerun()
 
-# 4. Formulario de Login (Solo si no está autenticado)
+# 4. Lógica de Login
 if not st.session_state.autenticado:
-    st.markdown("### Acceso al Sistema")
-    email_input = st.text_input("Correo Electrónico")
-    pass_input = st.text_input("Contraseña", type="password")
-    
-    if st.button("Ingresar"):
-        user_row = df_usr[df_usr['Correo'].astype(str).str.lower() == email_input.lower().strip()]
+    # Verificamos una vez más si saved_user llegó tarde (evita falsos negativos)
+    if saved_user is None:
+        st.markdown("### Acceso al Sistema")
+        email_input = st.text_input("Correo Electrónico", key="login_email")
+        pass_input = st.text_input("Contraseña", type="password", key="login_pass")
         
-        if not user_row.empty:
-            db_password = str(user_row.iloc[0]['Password']).strip()
+        if st.button("Ingresar", use_container_width=True):
+            user_row = df_usr[df_usr['Correo'].astype(str).str.lower() == email_input.lower().strip()]
             
-            if pass_input == db_password:
-                st.session_state.autenticado = True
-                st.session_state.user_email = email_input.lower().strip()
-                # Guardar cookie para que el equipo lo recuerde siempre
-                cookie_manager_inst.set("user_session_id", st.session_state.user_email)
-                st.rerun()
+            if not user_row.empty:
+                db_password = str(user_row.iloc[0]['Password']).strip()
+                if pass_input == db_password:
+                    st.session_state.autenticado = True
+                    st.session_state.user_email = email_input.lower().strip()
+                    # Guardamos la cookie
+                    cookie_manager_inst.set("user_session_id", st.session_state.user_email)
+                    st.rerun()
+                else:
+                    st.error("Contraseña incorrecta")
             else:
-                st.error("Contraseña incorrecta")
-        else:
-            st.error("Usuario no encontrado")
-    st.stop()
+                st.error("Usuario no encontrado")
+        st.stop()
+    else:
+        # Si por alguna razón saved_user tiene algo pero no pasó al paso 3
+        st.session_state.autenticado = True
+        st.session_state.user_email = saved_user
+        st.rerun()
 
-# 5. Recuperar datos del usuario (Solo llega aquí si ya pasó el login o la cookie)
+# 5. Carga de datos del usuario autenticado
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
-
 # ============================================
 # INTERFAZ PRINCIPAL
 # ============================================
