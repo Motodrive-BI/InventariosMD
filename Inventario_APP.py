@@ -14,7 +14,6 @@ st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 # CSS MEJORADO: Compatible con modo oscuro y tarjetas fijas
 st.markdown("""
     <style>
-    /* Forzar colores en tarjetas para evitar problemas con modo oscuro */
     .moto-card {
         background-color: #1a5276 !important;
         color: #ffffff !important;
@@ -27,20 +26,17 @@ st.markdown("""
         justify-content: space-between;
     }
 
-    /* Asegura que todo el texto dentro de la tarjeta sea blanco */
     .moto-card div, .moto-card span, .moto-card b, .moto-card strong {
         color: #ffffff !important; 
         line-height: 1.3;
         font-size: 14px;
     }
 
-    /* Etiquetas rojas resaltadas */
     .label-red {
         color: #ff4d4d !important;
         font-weight: bold;
     }
 
-    /* Estilo del botón pegado a la tarjeta */
     div.stButton > button {
         border-radius: 0px 0px 8px 8px !important;
         margin-top: -2px;
@@ -57,7 +53,6 @@ st.markdown("""
         color: #ff4d4d !important;
     }
 
-    /* Ajuste para los métricos */
     [data-testid="stMetric"] {
         background-color: rgba(255, 255, 255, 0.05);
         border: 1px solid #2e7d32;
@@ -101,7 +96,8 @@ df_inv = df_inv[df_inv['Modelo'].notna()].copy()
 def ventana_apartar(item_row, nombre_regional, user_email):
     st.write(f"### {item_row['Modelo']}")
     st.write(f"**Color:** {item_row['Color']} | **Año:** {item_row['Año Modelo']}")
-    st.write(f"**Stock Disponible:** {int(item_row['Disponible Restante'])}")
+    # Formato de miles aquí
+    st.write(f"**Stock Disponible:** {int(item_row['Disponible Restante']):,}")
     
     st.divider()
     
@@ -114,17 +110,13 @@ def ventana_apartar(item_row, nombre_regional, user_email):
             st.rerun()
     with col_v2:
         if st.button("Confirmar", type="primary", use_container_width=True):
-            # Lógica de actualización en la hoja de Inventario
             idx_inv = df_inv.index[df_inv['Item Number'] == item_row['Item Number']][0]
             col_usr_idx = df_inv.columns.get_loc(nombre_regional)
-            
             fila_sheet = int(idx_inv) + 2
             col_sheet = int(col_usr_idx) + 1
-            
             val_actual = int(df_inv.at[idx_inv, nombre_regional])
             ws_inv.update_cell(fila_sheet, col_sheet, val_actual + cant)
             
-            # Registro en Movimientos
             nuevo_mov = [
                 str(uuid.uuid4())[:8].upper(),
                 datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -132,7 +124,6 @@ def ventana_apartar(item_row, nombre_regional, user_email):
                 item_row['Año Modelo'], suc_dest, int(cant), user_email
             ]
             ws_movs.append_row(nuevo_mov)
-            
             st.success("✅ Apartado registrado con éxito")
             st.cache_data.clear()
             st.rerun()
@@ -171,9 +162,10 @@ st.title("Sistema de Apartado de Inventario MD:")
 st.header(f"BIENVENIDO – {nombre_regional}")
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Inventario Inicial:", int(df_inv['Disponible Inicial'].sum()))
-c2.metric("Inventario Restante:", int(df_inv['Disponible Restante'].sum()))
-c3.metric("Tus Apartados:", int(df_inv[nombre_regional].sum()) if nombre_regional in df_inv.columns else 0)
+# Formato de miles en Métricas
+c1.metric("Inventario Inicial:", f"{int(df_inv['Disponible Inicial'].sum()):,}")
+c2.metric("Inventario Restante:", f"{int(df_inv['Disponible Restante'].sum()):,}")
+c3.metric("Tus Apartados:", f"{int(df_inv[nombre_regional].sum()):,}" if nombre_regional in df_inv.columns else "0")
 with c4:
     st.write(" ")
     if st.button("🔄 Actualizar Datos", use_container_width=True):
@@ -181,7 +173,6 @@ with c4:
         st.rerun()
 
 st.write("---")
-# Filtros
 colf1, colf2, colf3, colf4 = st.columns(4)
 df_f = df_inv.copy()
 with colf1: bus = st.text_input("Cuadro de Búsqueda:", key="bus_txt")
@@ -205,13 +196,14 @@ for row_data in rows:
     cols = st.columns(n_cols)
     for i, (idx, row) in enumerate(row_data.iterrows()):
         with cols[i]:
+            # Formato de miles en el campo "Disponible" de la tarjeta
             st.markdown(f"""
                 <div class="moto-card">
                     <div><span class="label-red">Item:</span> <b>{row['Item Number']}</b></div>
                     <div><strong>Modelo:</strong> {row['Modelo']}</div>
                     <div><strong>Color:</strong> {row['Color']}</div>
                     <div><strong>Año:</strong> {row['Año Modelo']}</div>
-                    <div><strong>Disponible:</strong> {int(row['Disponible Restante'])}</div>
+                    <div><strong>Disponible:</strong> {int(row['Disponible Restante']):,}</div>
                 </div>
             """, unsafe_allow_html=True)
             
@@ -223,4 +215,5 @@ for row_data in rows:
 # ============================================
 st.write("---")
 st.subheader("Resumen de Movimientos:")
-st.dataframe(df_movs, use_container_width=True, hide_index=True)
+# El dataframe por defecto no aplica comas, pero podemos aplicarle formato al mostrarlo
+st.dataframe(df_movs.style.format(subset=['Cantidad'], formatter="{:,}"), use_container_width=True, hide_index=True)
