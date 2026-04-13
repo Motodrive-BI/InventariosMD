@@ -142,20 +142,32 @@ def ventana_apartar(item_row, nombre_regional, user_email):
         st.error("Lo sentimos, este modelo ya no tiene inventario disponible.")
         if st.button("Cerrar", use_container_width=True):
             st.rerun()
+# ============================================
+# GESTIÓN DE SESIÓN (COOKIES Y LOGIN) - CORREGIDO
+# ============================================
+import time
 
-# ============================================
-# GESTIÓN DE SESIÓN (COOKIES Y LOGIN)
-# ============================================
 cookie_manager_inst = cookie_manager.CookieManager()
+
+# 1. Pequeña pausa técnica: 
+# Las cookies tardan un poco en viajar del navegador a Python al refrescar.
+if 'verificado_inicial' not in st.session_state:
+    time.sleep(0.6)  # Pausa de 600ms solo al cargar la app
+    st.session_state.verificado_inicial = True
+
 saved_user = cookie_manager_inst.get("user_session_id")
 
+# 2. Inicializar estado de autenticación
 if 'autenticado' not in st.session_state:
-    if saved_user:
-        st.session_state.autenticado = True
-        st.session_state.user_email = saved_user
-    else:
-        st.session_state.autenticado = False
+    st.session_state.autenticado = False
 
+# 3. Lógica de Auto-Login (Si existe la cookie y no estamos autenticados en el state)
+if saved_user and not st.session_state.autenticado:
+    st.session_state.autenticado = True
+    st.session_state.user_email = saved_user
+    st.rerun()
+
+# 4. Formulario de Login (Solo si no está autenticado)
 if not st.session_state.autenticado:
     st.markdown("### Acceso al Sistema")
     email_input = st.text_input("Correo Electrónico")
@@ -170,8 +182,8 @@ if not st.session_state.autenticado:
             if pass_input == db_password:
                 st.session_state.autenticado = True
                 st.session_state.user_email = email_input.lower().strip()
-                # Guardar cookie para persistencia (equipo recordado)
-                cookie_manager_inst.set("user_session_id", st.session_state.user_email, expires_at=None)
+                # Guardar cookie para que el equipo lo recuerde siempre
+                cookie_manager_inst.set("user_session_id", st.session_state.user_email)
                 st.rerun()
             else:
                 st.error("Contraseña incorrecta")
@@ -179,7 +191,7 @@ if not st.session_state.autenticado:
             st.error("Usuario no encontrado")
     st.stop()
 
-# Recuperar datos del usuario una vez autenticado
+# 5. Recuperar datos del usuario (Solo llega aquí si ya pasó el login o la cookie)
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
