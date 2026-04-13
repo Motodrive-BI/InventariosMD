@@ -152,7 +152,7 @@ cookie_manager_inst = cookie_manager.CookieManager()
 # 1. Aseguramos que el gestor de cookies esté listo
 # Si no esperamos un poco, al refrescar siempre dirá que no hay sesión
 if 'cookie_ready' not in st.session_state:
-    time.sleep(0.8) # Un poco más de tiempo para conexiones lentas
+    time.sleep(1.2) # Un poco más de tiempo para conexiones lentas
     st.session_state.cookie_ready = True
 
 # Intentamos obtener la cookie
