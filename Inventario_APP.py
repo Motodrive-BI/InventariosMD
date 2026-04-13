@@ -102,6 +102,7 @@ def load_data():
 
 df_inv, df_usr, df_age, df_movs = load_data()
 df_inv = df_inv[df_inv['Modelo'].notna()].copy()
+df_inv['Año Modelo'] = df_inv['Año Modelo'].fillna(0).astype(int).astype(str).replace('0', 'N/A')
 
 # ============================================
 # VENTANA FLOTANTE (MODAL)
@@ -229,7 +230,7 @@ df_f = df_inv.copy()
 with colf1: bus = st.text_input("Cuadro de Búsqueda:", key="bus_txt")
 with colf2: mod = st.multiselect("Filtro Modelo:", sorted(df_f['Modelo'].unique()), key="f_mod")
 with colf3: col = st.multiselect("Filtro Color:", sorted(df_f['Color'].unique()), key="f_col")
-with colf4: ano = st.multiselect("Filtro Año:", sorted(df_f['Año Modelo'].unique().astype(int)), key="f_ano")
+with colf4: ano = st.multiselect("Filtro Año:", sorted(df_f['Año Modelo'].unique()), key="f_ano")
 with colf5: 
     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
     st.button("🧹 Limpiar Filtros", on_click=reset_filtros, use_container_width=True)
@@ -237,7 +238,7 @@ with colf5:
 if bus: df_f = df_f[df_f['Modelo'].str.contains(bus, case=False, na=False)]
 if mod: df_f = df_f[df_f['Modelo'].isin(mod)]
 if col: df_f = df_f[df_f['Color'].isin(col)]
-if ano: df_f = df_f[df_f['Año Modelo'].astype(int).isin(ano)]
+if ano: df_f = df_f[df_f['Año Modelo'].isin(ano)]
 
 # ============================================
 # GRID DE TARJETAS
