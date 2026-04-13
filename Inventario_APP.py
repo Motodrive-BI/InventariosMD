@@ -239,4 +239,11 @@ for row_data in rows:
 # ============================================
 st.write("---")
 st.subheader("Resumen de Movimientos:")
-st.dataframe(df_movs.style.format(subset=['Cantidad'], formatter="{:,}"), use_container_width=True, hide_index=True)
+
+col_formato = 'Cantidad Apartada' # <--- ESTA ES LA LÍNEA A CAMBIAR
+
+if col_formato in df_movs.columns:
+    df_styled = df_movs.style.format(subset=[col_formato], formatter="{:,}")
+    st.dataframe(df_styled, use_container_width=True, hide_index=True)
+else:
+    st.dataframe(df_movs, use_container_width=True, hide_index=True)
