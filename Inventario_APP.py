@@ -193,12 +193,26 @@ with c4:
         st.rerun()
 
 st.write("---")
-colf1, colf2, colf3, colf4 = st.columns(4)
+
+# Función Callback para limpiar filtros
+def reset_filtros():
+    st.session_state.bus_txt = ""
+    st.session_state.f_mod = []
+    st.session_state.f_col = []
+    st.session_state.f_ano = []
+
+# Se agrega una quinta columna para el botón de limpieza
+colf1, colf2, colf3, colf4, colf5 = st.columns([2, 2, 2, 2, 1.5])
 df_f = df_inv.copy()
+
 with colf1: bus = st.text_input("Cuadro de Búsqueda:", key="bus_txt")
 with colf2: mod = st.multiselect("Filtro Modelo:", sorted(df_f['Modelo'].unique()), key="f_mod")
 with colf3: col = st.multiselect("Filtro Color:", sorted(df_f['Color'].unique()), key="f_col")
 with colf4: ano = st.multiselect("Filtro Año:", sorted(df_f['Año Modelo'].unique().astype(str)), key="f_ano")
+with colf5: 
+    # Añadimos un pequeño margen superior para alinear el botón con las cajas de texto
+    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+    st.button("🧹 Limpiar Filtros", on_click=reset_filtros, use_container_width=True)
 
 if bus: df_f = df_f[df_f['Modelo'].str.contains(bus, case=False, na=False)]
 if mod: df_f = df_f[df_f['Modelo'].isin(mod)]
