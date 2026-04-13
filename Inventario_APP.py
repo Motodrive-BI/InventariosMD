@@ -232,7 +232,7 @@ for row_data in rows:
                 if st.button("Apartar", key=f"btn_{idx}", use_container_width=True):
                     ventana_apartar(row, nombre_regional, user_email)
             else:
-                st.markdown('<div class="sold-out-msg">🚫 SIN INVENTARIO</div>', unsafe_allow_html=True)
+                st.markdown('<div class="sold-out-msg">🚫 Inventario Agotado</div>', unsafe_allow_html=True)
 
 # ============================================
 # TABLA DE MOVIMIENTOS
