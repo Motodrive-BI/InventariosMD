@@ -156,26 +156,27 @@ if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
+    st.markdown("### Acceso al Sistema")
     email_input = st.text_input("Correo Electrónico")
+    pass_input = st.text_input("Contraseña", type="password") # Campo de contraseña oculto
+    
     if st.button("Ingresar"):
-        if email_input.lower() in df_usr['Correo'].astype(str).str.lower().values:
-            st.session_state.autenticado = True
-            st.session_state.user_email = email_input.lower()
-            st.rerun()
+        # Normalizamos entrada para evitar errores de mayúsculas/espacios
+        user_row = df_usr[df_usr['Correo'].astype(str).str.lower() == email_input.lower().strip()]
+        
+        if not user_row.empty:
+            # Verificamos si la contraseña coincide (ajusta 'Password' al nombre real de tu columna)
+            db_password = str(user_row.iloc[0]['Password']).strip()
+            
+            if pass_input == db_password:
+                st.session_state.autenticado = True
+                st.session_state.user_email = email_input.lower().strip()
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta")
         else:
-            st.error("No autorizado")
+            st.error("Usuario no encontrado")
     st.stop()
-
-user_email = st.session_state.user_email
-datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
-nombre_regional = datos_usuario.iloc[0]
-
-gerentes = [g for g in df_usr.iloc[:,0].dropna().tolist() if g in df_inv.columns]
-for g in gerentes:
-    df_inv[g] = pd.to_numeric(df_inv[g], errors='coerce').fillna(0).astype(int)
-df_inv['Disponible Inicial'] = pd.to_numeric(df_inv['Disponible Inicial'], errors='coerce').fillna(0).astype(int)
-df_inv['Disponible Restante'] = (df_inv['Disponible Inicial'] - df_inv[gerentes].sum(axis=1)).astype(int)
-
 # ============================================
 # INTERFAZ PRINCIPAL
 # ============================================
