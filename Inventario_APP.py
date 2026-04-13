@@ -209,8 +209,7 @@ with c4:
             st.rerun()
     with btn_col2:
         if st.button("🚫 Salir", use_container_width=True):
-            # Eliminar cookie y resetear estado
-            cookie_manager_inst.delete("user_session_id")
+             st.query_params.clear() # Borra el usuario de la URL
             for key in st.session_state.keys():
                 del st.session_state[key]
             st.rerun()
