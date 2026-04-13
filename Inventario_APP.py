@@ -131,7 +131,13 @@ def ventana_apartar(item_row, nombre_regional, user_email):
                 col_usr_idx = df_inv.columns.get_loc(nombre_regional)
                 fila_sheet = int(idx_inv) + 2
                 col_sheet = int(col_usr_idx) + 1
-                val_actual = int(df_inv.at[idx_inv, nombre_regional])
+                # Buscamos el valor; si hay error o está vacío, asumimos 0
+                try:
+                val_actual = df_inv.at[idx_inv, nombre_regional]
+                val_actual = int(pd.to_numeric(val_actual, errors='coerce')) if pd.notnull(val_actual) else 0
+                except KeyError:
+                st.error(f"Error: No existe una columna para '{nombre_regional}' en el Inventario.")
+                st.stop()
                 ws_inv.update_cell(fila_sheet, col_sheet, val_actual + cant)
                 
                 nuevo_mov = [
