@@ -177,11 +177,10 @@ if not st.session_state.autenticado:
         else:
             st.error("Usuario no encontrado")
     st.stop()
-    user_email = st.session_state.user_email
-    datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
-
-    # Aquí definimos la variable que usa el resto de la app
-    nombre_regional = datos_usuario.iloc[0]
+user_email = st.session_state.user_email
+datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
+# Aquí definimos la variable que usa el resto de la app
+nombre_regional = datos_usuario.iloc[0]
 # ============================================
 # INTERFAZ PRINCIPAL
 # ============================================
