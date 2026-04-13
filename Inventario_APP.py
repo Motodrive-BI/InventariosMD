@@ -37,6 +37,7 @@ st.markdown("""
         font-weight: bold;
     }
 
+    /* Estilo del botón y del mensaje de agotado */
     div.stButton > button {
         border-radius: 0px 0px 8px 8px !important;
         margin-top: -2px;
@@ -51,6 +52,20 @@ st.markdown("""
     div.stButton > button:hover {
         border-color: #ff4d4d !important;
         color: #ff4d4d !important;
+    }
+
+    /* Mensaje de Agotado con el mismo estilo del botón pero gris */
+    .sold-out-msg {
+        background-color: #424949 !important;
+        color: #bdc3c7 !important;
+        text-align: center;
+        padding: 10px;
+        border-radius: 0px 0px 8px 8px;
+        border: 1px solid #444;
+        font-weight: bold;
+        font-size: 14px;
+        height: 42px;
+        margin-top: -2px;
     }
 
     [data-testid="stMetric"] {
@@ -94,38 +109,44 @@ df_inv = df_inv[df_inv['Modelo'].notna()].copy()
 # ============================================
 @st.dialog("Confirmar Apartado de Unidad")
 def ventana_apartar(item_row, nombre_regional, user_email):
+    disp_real = int(item_row['Disponible Restante'])
+    
     st.write(f"### {item_row['Modelo']}")
     st.write(f"**Color:** {item_row['Color']} | **Año:** {item_row['Año Modelo']}")
-    # Formato de miles aquí
-    st.write(f"**Stock Disponible:** {int(item_row['Disponible Restante']):,}")
+    st.write(f"**Stock Disponible:** {disp_real:,}")
     
     st.divider()
     
-    suc_dest = st.selectbox("Seleccione Sucursal Destino", df_age.iloc[:, 0].dropna())
-    cant = st.number_input("Cantidad a apartar", min_value=1, max_value=int(item_row['Disponible Restante']), step=1)
-    
-    col_v1, col_v2 = st.columns(2)
-    with col_v1:
-        if st.button("Cancelar", use_container_width=True):
-            st.rerun()
-    with col_v2:
-        if st.button("Confirmar", type="primary", use_container_width=True):
-            idx_inv = df_inv.index[df_inv['Item Number'] == item_row['Item Number']][0]
-            col_usr_idx = df_inv.columns.get_loc(nombre_regional)
-            fila_sheet = int(idx_inv) + 2
-            col_sheet = int(col_usr_idx) + 1
-            val_actual = int(df_inv.at[idx_inv, nombre_regional])
-            ws_inv.update_cell(fila_sheet, col_sheet, val_actual + cant)
-            
-            nuevo_mov = [
-                str(uuid.uuid4())[:8].upper(),
-                datetime.now().strftime("%d/%m/%Y %H:%M"),
-                item_row['Item Number'], item_row['Modelo'], item_row['Color'],
-                item_row['Año Modelo'], suc_dest, int(cant), user_email
-            ]
-            ws_movs.append_row(nuevo_mov)
-            st.success("✅ Apartado registrado con éxito")
-            st.cache_data.clear()
+    if disp_real > 0:
+        suc_dest = st.selectbox("Seleccione Sucursal Destino", df_age.iloc[:, 0].dropna())
+        cant = st.number_input("Cantidad a apartar", min_value=1, max_value=disp_real, step=1)
+        
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            if st.button("Cancelar", use_container_width=True):
+                st.rerun()
+        with col_v2:
+            if st.button("Confirmar", type="primary", use_container_width=True):
+                idx_inv = df_inv.index[df_inv['Item Number'] == item_row['Item Number']][0]
+                col_usr_idx = df_inv.columns.get_loc(nombre_regional)
+                fila_sheet = int(idx_inv) + 2
+                col_sheet = int(col_usr_idx) + 1
+                val_actual = int(df_inv.at[idx_inv, nombre_regional])
+                ws_inv.update_cell(fila_sheet, col_sheet, val_actual + cant)
+                
+                nuevo_mov = [
+                    str(uuid.uuid4())[:8].upper(),
+                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    item_row['Item Number'], item_row['Modelo'], item_row['Color'],
+                    item_row['Año Modelo'], suc_dest, int(cant), user_email
+                ]
+                ws_movs.append_row(nuevo_mov)
+                st.success("✅ Apartado registrado con éxito")
+                st.cache_data.clear()
+                st.rerun()
+    else:
+        st.error("Lo sentimos, este modelo ya no tiene inventario disponible.")
+        if st.button("Cerrar", use_container_width=True):
             st.rerun()
 
 # ============================================
@@ -162,7 +183,6 @@ st.title("Sistema de Apartado de Inventario MD:")
 st.header(f"BIENVENIDO – {nombre_regional}")
 
 c1, c2, c3, c4 = st.columns(4)
-# Formato de miles en Métricas
 c1.metric("Inventario Inicial:", f"{int(df_inv['Disponible Inicial'].sum()):,}")
 c2.metric("Inventario Restante:", f"{int(df_inv['Disponible Restante'].sum()):,}")
 c3.metric("Tus Apartados:", f"{int(df_inv[nombre_regional].sum()):,}" if nombre_regional in df_inv.columns else "0")
@@ -195,25 +215,28 @@ rows = [df_f.iloc[i:i+n_cols] for i in range(0, len(df_f), n_cols)]
 for row_data in rows:
     cols = st.columns(n_cols)
     for i, (idx, row) in enumerate(row_data.iterrows()):
+        disp_restante = int(row['Disponible Restante'])
         with cols[i]:
-            # Formato de miles en el campo "Disponible" de la tarjeta
             st.markdown(f"""
                 <div class="moto-card">
                     <div><span class="label-red">Item:</span> <b>{row['Item Number']}</b></div>
                     <div><strong>Modelo:</strong> {row['Modelo']}</div>
                     <div><strong>Color:</strong> {row['Color']}</div>
                     <div><strong>Año:</strong> {row['Año Modelo']}</div>
-                    <div><strong>Disponible:</strong> {int(row['Disponible Restante']):,}</div>
+                    <div><strong>Disponible:</strong> {disp_restante:,}</div>
                 </div>
             """, unsafe_allow_html=True)
             
-            if st.button("Apartar", key=f"btn_{idx}", use_container_width=True):
-                ventana_apartar(row, nombre_regional, user_email)
+            # Validación de Inventario Agotado
+            if disp_restante > 0:
+                if st.button("Apartar", key=f"btn_{idx}", use_container_width=True):
+                    ventana_apartar(row, nombre_regional, user_email)
+            else:
+                st.markdown('<div class="sold-out-msg">🚫 SIN INVENTARIO</div>', unsafe_allow_html=True)
 
 # ============================================
 # TABLA DE MOVIMIENTOS
 # ============================================
 st.write("---")
 st.subheader("Resumen de Movimientos:")
-# El dataframe por defecto no aplica comas, pero podemos aplicarle formato al mostrarlo
 st.dataframe(df_movs.style.format(subset=['Cantidad'], formatter="{:,}"), use_container_width=True, hide_index=True)
