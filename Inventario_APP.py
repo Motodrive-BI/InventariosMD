@@ -181,7 +181,7 @@ if not st.session_state.autenticado:
 # INTERFAZ PRINCIPAL
 # ============================================
 st.title("Sistema de Apartado de Inventario MD:")
-st.header(f"BIENVENIDO – {Nombre}")
+st.header(f"BIENVENIDO – {nombre_regional}") # Usa la variable que definiste arriba
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Inventario Inicial:", f"{int(df_inv['Disponible Inicial'].sum()):,}")
