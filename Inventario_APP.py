@@ -204,11 +204,11 @@ with c4:
     st.write(" ")
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
-        if st.button("🔄 Actualizar", use_container_width=True):
+        if st.button("🔄 Actualizar Datos", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     with btn_col2:
-        if st.button("🚫 Salir", use_container_width=True):
+        if st.button("🚫 Cerrar Sesión", use_container_width=True):
             st.query_params.clear() # Borra el usuario de la URL
             for key in st.session_state.keys():
                 del st.session_state[key]
