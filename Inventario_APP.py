@@ -143,63 +143,58 @@ def ventana_apartar(item_row, nombre_regional, user_email):
         if st.button("Cerrar", use_container_width=True):
             st.rerun()
 # ============================================
-# GESTIÓN DE SESIÓN (VERSIÓN DEFINITIVA)
+# GESTIÓN DE SESIÓN (SOLUCIÓN DEFINITIVA DE SINCRONIZACIÓN)
 # ============================================
 import time
 
+# 1. Inicializar el gestor de cookies
 cookie_manager_inst = cookie_manager.CookieManager()
 
-# 1. Aseguramos que el gestor de cookies esté listo
-# Si no esperamos un poco, al refrescar siempre dirá que no hay sesión
-if 'cookie_ready' not in st.session_state:
-    time.sleep(1.2) # Un poco más de tiempo para conexiones lentas
-    st.session_state.cookie_ready = True
+# 2. Forzar espera hasta que el componente esté listo
+# Esto evita que Streamlit asuma que no hay cookie solo porque el navegador no respondió a tiempo
+if 'cookies_checked' not in st.session_state:
+    with st.spinner("Verificando sesión..."):
+        time.sleep(1.5)  # Tiempo suficiente para que el navegador entregue la cookie
+        st.session_state.cookies_checked = True
+        st.rerun()
 
-# Intentamos obtener la cookie
+# Intentar recuperar el valor
 saved_user = cookie_manager_inst.get("user_session_id")
 
-# 2. Inicializar estado de autenticación si no existe
+# 3. Inicializar estado de autenticación
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# 3. CRUCIAL: Si existe la cookie pero el estado dice que no estamos autenticados,
-# actualizamos el estado y forzamos reinicio para entrar.
+# 4. Si encontramos la cookie y no estamos autenticados, entramos directo
 if saved_user and not st.session_state.autenticado:
     st.session_state.autenticado = True
     st.session_state.user_email = saved_user
     st.rerun()
 
-# 4. Lógica de Login
+# 5. Si después de la espera NO hay cookie y NO estamos autenticados, mostrar Login
 if not st.session_state.autenticado:
-    # Verificamos una vez más si saved_user llegó tarde (evita falsos negativos)
-    if saved_user is None:
-        st.markdown("### Acceso al Sistema")
-        email_input = st.text_input("Correo Electrónico", key="login_email")
-        pass_input = st.text_input("Contraseña", type="password", key="login_pass")
+    st.markdown("### Acceso al Sistema")
+    email_input = st.text_input("Correo Electrónico", key="login_email_unique")
+    pass_input = st.text_input("Contraseña", type="password", key="login_pass_unique")
+    
+    if st.button("Ingresar", use_container_width=True):
+        user_row = df_usr[df_usr['Correo'].astype(str).str.lower() == email_input.lower().strip()]
         
-        if st.button("Ingresar", use_container_width=True):
-            user_row = df_usr[df_usr['Correo'].astype(str).str.lower() == email_input.lower().strip()]
-            
-            if not user_row.empty:
-                db_password = str(user_row.iloc[0]['Password']).strip()
-                if pass_input == db_password:
-                    st.session_state.autenticado = True
-                    st.session_state.user_email = email_input.lower().strip()
-                    # Guardamos la cookie
-                    cookie_manager_inst.set("user_session_id", st.session_state.user_email)
-                    st.rerun()
-                else:
-                    st.error("Contraseña incorrecta")
+        if not user_row.empty:
+            db_password = str(user_row.iloc[0]['Password']).strip()
+            if pass_input == db_password:
+                st.session_state.autenticado = True
+                st.session_state.user_email = email_input.lower().strip()
+                # Guardamos la cookie (esto la escribe en el navegador)
+                cookie_manager_inst.set("user_session_id", st.session_state.user_email)
+                st.rerun()
             else:
-                st.error("Usuario no encontrado")
-        st.stop()
-    else:
-        # Si por alguna razón saved_user tiene algo pero no pasó al paso 3
-        st.session_state.autenticado = True
-        st.session_state.user_email = saved_user
-        st.rerun()
+                st.error("Contraseña incorrecta")
+        else:
+            st.error("Usuario no encontrado")
+    st.stop()
 
-# 5. Carga de datos del usuario autenticado
+# 6. Carga de datos una vez validado
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
 nombre_regional = datos_usuario.iloc[0]
