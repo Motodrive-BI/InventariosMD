@@ -3,7 +3,6 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 import uuid
-
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -12,8 +11,40 @@ from google.oauth2.service_account import Credentials
 # ============================================
 st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 
-conn = st.connection("gsheets", type=GSheetsConnection)
+# CSS Personalizado para imitar la imagen
+st.markdown("""
+    <style>
+    /* Estilo para las métricas superiores */
+    [data-testid="stMetric"] {
+        background-color: #ffffff;
+        border: 2px solid #2e7d32;
+        padding: 10px;
+        border-radius: 5px;
+        text-align: center;
+    }
+    
+    /* Estilo de las tarjetas de inventario */
+    .moto-card {
+        background-color: #1a5276;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #000;
+        margin-bottom: 10px;
+        font-family: sans-serif;
+    }
+    .label-red {
+        color: #ff4d4d;
+        font-weight: bold;
+    }
+    .text-white {
+        color: white;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+conn = st.connection("gsheets", type=GSheetsConnection)
 URL = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehzarvxZBpleu0/edit?usp=sharing"
 
 # ============================================
@@ -22,15 +53,12 @@ URL = "https://docs.google.com/spreadsheets/d/1mbzAa6zn_otA_y1932IyW8fSuf8XOehza
 @st.cache_resource
 def connect_gspread():
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
-
     creds = Credentials.from_service_account_info(
         st.secrets["connections"]["gsheets"],
         scopes=scope
     )
-
     client = gspread.authorize(creds)
     sheet = client.open_by_url(URL)
-
     return sheet
 
 gsheet = connect_gspread()
@@ -53,14 +81,10 @@ df_inv = df_inv[
     df_inv['Modelo'].notna() &
     df_inv['Color'].notna() &
     df_inv['Año Modelo'].notna()
-]
+].copy()
 
-df_inv = df_inv[
-    df_inv['Modelo'].astype(str).str.strip() != ""
-]
-# ============================================
-# 🔧 LIMPIEZA ROBUSTA (NUEVO)
-# ============================================
+df_inv = df_inv[df_inv['Modelo'].astype(str).str.strip() != ""]
+
 def clean_unique(series):
     return sorted(series.dropna().astype(str).str.strip().unique())
 
@@ -82,7 +106,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # ============================================
-# USER
+# USER DATA PROCESSING
 # ============================================
 user_email = st.session_state.user_email
 datos_usuario = df_usr[df_usr['Correo'].astype(str).str.lower() == user_email].iloc[0]
@@ -100,192 +124,147 @@ df_inv_calc = df_inv.copy()
 df_inv_calc['Apartado'] = df_inv_calc['Disponible Inicial'] - df_inv_calc['Disponible Restante']
 
 # ============================================
-# FILTROS Y BOTONES
+# HEADER & KPIs (Igual a la imagen)
 # ============================================
-st.markdown("## 🔍 Búsqueda y filtros")
+st.title("Sistema de Apartado de Inventario MD:")
+st.header(f"BIENVENIDO – “{nombre_regional}”")
 
-# -- BOTONES NUEVOS --
-col_btn1, col_btn2, _ = st.columns([2, 2, 6]) 
+total_inicial = int(df_inv['Disponible Inicial'].sum())
+total_restante = int(df_inv['Disponible Restante'].sum())
+apartados_usuario = int(df_inv[nombre_regional].sum()) if nombre_regional in df_inv.columns else 0
 
-with col_btn1:
-    if st.button("🔄 Actualizar Datos", use_container_width=True):
+c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+c1.metric("Inventario Inicial:", total_inicial)
+c2.metric("Inventario Restante:", total_restante)
+c3.metric("Apartados:", apartados_usuario)
+with c4:
+    st.write("") # Espaciador
+    if st.button("BOTÓN\nActualizar datos", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-with col_btn2:
-    if st.button("🧹 Borrar Filtros", use_container_width=True):
-        # Borramos de la memoria las selecciones actuales
-        claves_filtros = ["busqueda_txt", "filtro_mod", "filtro_col", "filtro_ano"]
-        for clave in claves_filtros:
-            if clave in st.session_state:
-                del st.session_state[clave]
-        st.rerun()
+# ============================================
+# FILTROS
+# ============================================
+st.markdown("### Listado de Modelos Disponibles:")
 
-st.markdown("<br>", unsafe_allow_html=True) # Un pequeño espacio
-
-# -- FILTROS EN CASCADA --
-colf1, colf2, colf3, colf4 = st.columns(4)
-
+colf1, colf2, colf3, colf4, colf5 = st.columns([2, 2, 2, 2, 2])
 df_temp = df_inv.copy()
 
 with colf1:
-    busqueda = st.text_input("Buscar modelo", key="busqueda_txt")
+    busqueda = st.text_input("Cuadro de Búsqueda:", key="busqueda_txt")
     if busqueda:
         df_temp = df_temp[df_temp['Modelo'].astype(str).str.contains(busqueda, case=False, na=False)]
 
 with colf2:
-    opciones_modelo = clean_unique(df_temp['Modelo'])
-    filtro_modelo = st.multiselect("Modelo", opciones_modelo, key="filtro_mod")
+    filtro_modelo = st.multiselect("Filtro Modelo:", clean_unique(df_temp['Modelo']), key="filtro_mod")
     if filtro_modelo:
         df_temp = df_temp[df_temp['Modelo'].astype(str).isin(filtro_modelo)]
 
 with colf3:
-    # Las opciones de color ahora dependen de lo que haya filtrado el modelo
-    opciones_color = clean_unique(df_temp['Color'])
-    filtro_color = st.multiselect("Color", opciones_color, key="filtro_col")
+    filtro_color = st.multiselect("Filtro Color:", clean_unique(df_temp['Color']), key="filtro_col")
     if filtro_color:
         df_temp = df_temp[df_temp['Color'].astype(str).isin(filtro_color)]
 
 with colf4:
-    # Las opciones de año ahora dependen de lo que hayan filtrado modelo y color
-    opciones_año = clean_unique(df_temp['Año Modelo'])
-    filtro_año = st.multiselect("Año", opciones_año, key="filtro_ano")
+    filtro_año = st.multiselect("Filtro Año Modelo:", clean_unique(df_temp['Año Modelo']), key="filtro_ano")
     if filtro_año:
         df_temp = df_temp[df_temp['Año Modelo'].astype(str).isin(filtro_año)]
+
+with colf5:
+    st.write("")
+    if st.button("BOTÓN\nReestablecer", use_container_width=True):
+        for clave in ["busqueda_txt", "filtro_mod", "filtro_col", "filtro_ano"]:
+            if clave in st.session_state: del st.session_state[clave]
+        st.rerun()
 
 df_filtrado = df_temp
 
 # ============================================
-# HEADER
+# CUADRÍCULA DE MODELOS (VISUALIZACIÓN DE TARJETAS)
 # ============================================
-st.title(f"🏍️ {nombre_regional}")
+st.write("---")
+# Creamos filas de 4 columnas
+cols = st.columns(4)
 
-# ============================================
-# KPIs
-# ============================================
-total_inicial = int(df_inv['Disponible Inicial'].sum())
-total_restante = int(df_inv['Disponible Restante'].sum())
-if nombre_regional in df_inv.columns:
-    apartados_usuario = int(pd.to_numeric(df_inv[nombre_regional], errors='coerce').fillna(0).sum())
-else:
-    apartados_usuario = 0
-
-c1, c2, c3 = st.columns(3)
-c1.metric("Disponible Inicial", total_inicial)
-c2.metric("Disponible Restante", total_restante)
-c3.metric("Tus Apartados", apartados_usuario)
-
-# ============================================
-# SIDEBAR
-# ============================================
-with st.sidebar:
-
-    st.subheader("📂 Historial Acumulado (Todos)")
-
-    st.dataframe(df_movs, use_container_width=True)
-
-    st.markdown("---")
-
-    st.subheader("🏍️ Apartar unidad")
-
-    if "modelo" in st.session_state:
-        row = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
-        disp = int(row['Disponible Restante'])
-
-        st.success(f"{row['Modelo']} ({row['Color']})")
-
-        if st.button("❌ Cancelar selección"):
-            if 'modelo' in st.session_state:
-                del st.session_state.modelo
-            st.rerun()
-
-        if disp > 0:
-            suc = st.selectbox("Sucursal", df_age.iloc[:, 0].dropna(), key="suc")
-            cant = st.number_input("Cantidad", 1, disp, key="cant")
-
-            if st.button("Confirmar Apartado", use_container_width=True):
-
-                idx = df_inv.index[df_inv['Item Number'] == row['Item Number']][0]
-                col_idx = df_inv.columns.get_loc(nombre_regional)
-
-                fila_sheet = idx + 2
-                col_sheet = col_idx + 1
-
-                valor_actual = int(df_inv.at[idx, nombre_regional])
-                nuevo_valor = valor_actual + cant
-
-                ws_inv.update_cell(fila_sheet, col_sheet, nuevo_valor)
-
-                nuevo_mov = [
-                    str(uuid.uuid4())[:8].upper(),
-                    datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    row['Item Number'],
-                    row['Modelo'],
-                    row['Color'],
-                    row['Año Modelo'],
-                    suc,
-                    int(cant),
-                    nombre_regional
-                ]
-
-                filas_ocupadas = len(ws_movs.col_values(1)) 
-                siguiente_fila = filas_ocupadas + 1
-                ws_movs.insert_row(nuevo_mov, index=siguiente_fila)
-
-                st.success("✅ Registrado sin romper fórmulas")
-
-                if 'modelo' in st.session_state:
-                    del st.session_state.modelo
-                st.cache_data.clear()
-                st.rerun()
-        else:
-            st.error("🚫 Sin stock")
-    else:
-        st.info("Selecciona un modelo")
-
-# ============================================
-# MODELOS
-# ============================================
-st.markdown("---")
-st.subheader("Modelos disponibles")
-
-for i, row in df_filtrado.iterrows():
+for i, (idx, row) in enumerate(df_filtrado.iterrows()):
     stock = int(row['Disponible Restante'])
-    color = "🔴" if stock <= 0 else "🟢"
-
-    col1, col2 = st.columns([5,1])
-
-    with col1:
+    col_idx = i % 4
+    
+    with cols[col_idx]:
+        # HTML para la tarjeta
         st.markdown(f"""
-        **{row['Modelo']}** ({row['Color']})  
-        Año: {row['Año Modelo']}  
-        Stock: {color} {stock}
-        """)
-
-    with col2:
-        if st.button("Seleccionar", key=f"btn_{i}"):
+            <div class="moto-card">
+                <span class="label-red">Item:</span> <span class="text-white">{row['Item Number']}</span><br>
+                <span class="text-white">Modelo:</span> {row['Modelo']}<br>
+                <span class="text-white">Color:</span> {row['Color']}<br>
+                <span class="text-white">Año:</span> {row['Año Modelo']}<br>
+                <span class="text-white">Disponible:</span> {stock}
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Botón de selección justo debajo de la tarjeta
+        if st.button("BOTÓN Apartar", key=f"btn_{idx}", use_container_width=True):
             st.session_state.modelo = row['Item Number']
             st.rerun()
 
 # ============================================
-# DASHBOARD
+# SIDEBAR - PROCESO DE APARTADO
 # ============================================
-st.markdown("---")
-st.header("📊 Dashboard")
+with st.sidebar:
+    st.subheader("📂 Historial Acumulado")
+    st.dataframe(df_movs, use_container_width=True)
+    st.markdown("---")
+    st.subheader("🏍️ Apartar unidad")
 
-c1, c2 = st.columns(2)
+    if "modelo" in st.session_state:
+        row_sel = df_inv[df_inv['Item Number'] == st.session_state.modelo].iloc[0]
+        disp = int(row_sel['Disponible Restante'])
 
-with c1:
-    st.subheader("Disponible Inicial")
-    st.bar_chart(df_inv.groupby("Modelo")["Disponible Inicial"].sum())
+        st.success(f"Seleccionado: {row_sel['Modelo']}")
+        
+        if st.button("❌ Cancelar selección"):
+            del st.session_state.modelo
+            st.rerun()
 
-with c2:
-    st.subheader("Apartados")
-    st.bar_chart(df_inv_calc.groupby("Modelo")["Apartado"].sum())
+        if disp > 0:
+            suc = st.selectbox("Sucursal Destino", df_age.iloc[:, 0].dropna())
+            cant = st.number_input("Cantidad", 1, disp)
+
+            if st.button("Confirmar Apartado", use_container_width=True):
+                # Lógica de actualización en GSheets
+                idx_inv = df_inv.index[df_inv['Item Number'] == row_sel['Item Number']][0]
+                col_name_idx = df_inv.columns.get_loc(nombre_regional)
+                
+                fila_sheet = int(idx_inv) + 2
+                col_sheet = int(col_name_idx) + 1
+                
+                valor_actual = int(df_inv.at[idx_inv, nombre_regional])
+                ws_inv.update_cell(fila_sheet, col_sheet, valor_actual + cant)
+
+                nuevo_mov = [
+                    str(uuid.uuid4())[:8].upper(),
+                    datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    row_sel['Item Number'], row_sel['Modelo'], row_sel['Color'],
+                    row_sel['Año Modelo'], suc, int(cant), user_email
+                ]
+                ws_movs.append_row(nuevo_mov)
+
+                st.success("✅ ¡Apartado registrado!")
+                del st.session_state.modelo
+                st.cache_data.clear()
+                st.rerun()
+        else:
+            st.error("Sin stock disponible")
 
 # ============================================
-# TABLA
+# RESUMEN DE MOVIMIENTOS (TABLA INFERIOR)
 # ============================================
-st.markdown("---")
-st.subheader("Inventario")
+st.write("---")
+st.subheader("Resumen de Movimientos:")
+st.dataframe(df_movs, use_container_width=True, hide_index=True)
+
+# Dashboard simple al final
+st.write("---")
+st.subheader("Inventario Completo")
 st.dataframe(df_inv, use_container_width=True)
