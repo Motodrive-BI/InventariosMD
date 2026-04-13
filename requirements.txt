@@ -3,3 +3,4 @@ pandas>=2.0.0
 st-gsheets-connection
 gspread
 google-auth
+extra-streamlit-components
