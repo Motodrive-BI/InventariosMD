@@ -204,6 +204,7 @@ nombre_regional = datos_usuario.iloc[0]
 # INTERFAZ PRINCIPAL
 # ============================================
 # Creamos dos columnas: una muy estrecha para el logo y otra ancha para el título
+st.markdown("<br>", unsafe_allow_html=True) # Agrega un espacio en blanco arriba si es necesario
 col_logo, col_titulo = st.columns([1, 5])
 
 with col_logo:
