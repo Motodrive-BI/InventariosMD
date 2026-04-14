@@ -15,6 +15,7 @@ st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 # CSS MEJORADO: Compatible con modo oscuro y tarjetas fijas
 st.markdown("""
     <style>
+    /*
     .moto-card {
         background-color: #1a5276 !important;
         color: #ffffff !important;
