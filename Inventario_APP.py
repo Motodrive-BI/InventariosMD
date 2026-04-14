@@ -12,10 +12,16 @@ import extra_streamlit_components as cookie_manager  # NUEVA LÍNEA
 # ============================================ 
 st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 
-# CSS MEJORADO: Compatible con modo oscuro y tarjetas fijas
+# CSS MEJORADO: Incluye ajuste de espacio superior y diseño de tarjetas
 st.markdown("""
     <style>
-    /*
+    /* 1. ELIMINA EL ESPACIO BLANCO EN LA PARTE SUPERIOR */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+
+    /* 2. DISEÑO DE TARJETAS DE MOTOS */
     .moto-card {
         background-color: #1a5276 !important;
         color: #ffffff !important;
@@ -39,6 +45,7 @@ st.markdown("""
         font-weight: bold;
     }
 
+    /* 3. DISEÑO DE BOTONES */
     div.stButton > button {
         border-radius: 0px 0px 8px 8px !important;
         margin-top: -2px;
@@ -55,6 +62,7 @@ st.markdown("""
         color: #ff4d4d !important;
     }
 
+    /* 4. MENSAJE DE AGOTADO */
     .sold-out-msg {
         background-color: #424949 !important;
         color: #bdc3c7 !important;
@@ -68,6 +76,7 @@ st.markdown("""
         margin-top: -2px;
     }
 
+    /* 5. DISEÑO DE MÉTRICAS */
     [data-testid="stMetric"] {
         background-color: rgba(255, 255, 255, 0.05);
         border: 1px solid #2e7d32;
@@ -76,7 +85,6 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
-
 # ============================================
 # CONEXIONES Y DATOS
 # ============================================
