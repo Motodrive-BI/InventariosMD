@@ -10,6 +10,11 @@ import extra_streamlit_components as cookie_manager  # NUEVA LÍNEA
 # ============================================
 # CONFIGURACIÓN DE PÁGINA
 # ============================================
+# --- AGREGAR LOGO AQUÍ ---
+col_logo_1, col_logo_2, col_logo_3 = st.columns([1, 2, 1])
+with col_logo_2:
+    st.image("https://portal.motodrv.com/motodrive/wp-content/uploads/2020/01/Logo-Mdv-1.png", width=300)
+    
 st.set_page_config(page_title="Inventario Motodrive", layout="wide")
 
 # CSS MEJORADO: Compatible con modo oscuro y tarjetas fijas
