@@ -203,15 +203,16 @@ nombre_regional = datos_usuario.iloc[0]
 # ============================================
 # INTERFAZ PRINCIPAL
 # ============================================
-# Usamos vertical_alignment="center" para que el logo no quede volando arriba
-col_logo, col_titulo = st.columns([0.8, 4], vertical_alignment="center")
+# Cambiamos la proporción a [0.4, 4] para que el logo y el texto estén juntos
+col_logo, col_titulo = st.columns([0.4, 4], vertical_alignment="center")
 
 with col_logo:
-    st.image("https://portal.motodrv.com/motodrive/wp-content/uploads/2020/01/Logo-Mdv-1.png", width=110)
+    # Ajustamos el ancho a 90 para que sea sutil y elegante
+    st.image("https://portal.motodrv.com/motodrive/wp-content/uploads/2020/01/Logo-Mdv-1.png", width=90)
 
 with col_titulo:
-    # Quitamos el margen superior por defecto del h1 para que se pegue al logo
-    st.markdown("<h1 style='margin-bottom: 0;'>Sistema de Apartado Motodrive</h1>", unsafe_allow_html=True)
+    # Usamos st.title directamente ahora que el espacio está ajustado
+    st.title("Sistema de Apartado Motodrive")
 
 st.header(f"Bienvenido – {nombre_regional}")
 
