@@ -246,8 +246,6 @@ with c4:
 
 st.write("---")
 
-# Función Callback para limpiar filtros
-def reset_filtros():
 # ============================================
 # FILTROS DINÁMICOS (CASCADA)
 # ============================================
