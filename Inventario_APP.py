@@ -250,7 +250,18 @@ st.write("---")
 # FILTROS DINÁMICOS (CASCADA)
 # ============================================
 
-# Función Callback para limpiar filtros
+# ============================================
+# INICIALIZACIÓN DE SESSION STATE (Colocar antes de los filtros)
+# ============================================
+if "f_mod" not in st.session_state: st.session_state.f_mod = []
+if "f_col" not in st.session_state: st.session_state.f_col = []
+if "f_ano" not in st.session_state: st.session_state.f_ano = []
+if "bus_txt" not in st.session_state: st.session_state.bus_txt = ""
+
+# ============================================
+# FILTROS DINÁMICOS (CASCADA)
+# ============================================
+
 def reset_filtros():
     st.session_state.bus_txt = ""
     st.session_state.f_mod = []
@@ -259,76 +270,65 @@ def reset_filtros():
 
 colf1, colf2, colf3, colf4, colf5 = st.columns([2, 2, 2, 2, 1.5])
 
-# 1. Filtro de Búsqueda de Texto (Independiente)
+# 1. Búsqueda por texto
 with colf1: 
     bus = st.text_input("Buscar:", key="bus_txt")
 
-# --- Lógica de filtrado progresivo ---
-# Creamos versiones temporales del dataframe para calcular qué opciones mostrar en cada multiselect
+# --- Lógica de filtrado cruzado ---
+# El secreto es que cada filtro muestre opciones basadas en lo que los OTROS filtros tienen seleccionado
 df_for_mod = df_inv.copy()
 df_for_col = df_inv.copy()
 df_for_ano = df_inv.copy()
 
-# Si hay algo en búsqueda, afecta a todos
-if bus:
-    mask = df_inv['Modelo'].str.contains(bus, case=False, na=False)
+# Filtro de texto afecta a todos
+if st.session_state.bus_txt:
+    mask = df_inv['Modelo'].str.contains(st.session_state.bus_txt, case=False, na=False)
     df_for_mod = df_for_mod[mask]
     df_for_col = df_for_col[mask]
     df_for_ano = df_for_ano[mask]
 
-# Si hay modelos seleccionados, filtran las opciones de Color y Año
+# Lo que selecciones en Modelo filtra a Color y Año
 if st.session_state.f_mod:
     mask = df_inv['Modelo'].isin(st.session_state.f_mod)
     df_for_col = df_for_col[mask]
     df_for_ano = df_for_ano[mask]
 
-# Si hay colores seleccionados, filtran las opciones de Modelo y Año
+# Lo que selecciones en Color filtra a Modelo y Año
 if st.session_state.f_col:
     mask = df_inv['Color'].isin(st.session_state.f_col)
     df_for_mod = df_for_mod[mask]
     df_for_ano = df_for_ano[mask]
 
-# Si hay años seleccionados, filtran las opciones de Modelo y Color
+# Lo que selecciones en Año filtra a Modelo y Color
 if st.session_state.f_ano:
     mask = df_inv['Año Modelo'].isin(st.session_state.f_ano)
     df_for_mod = df_for_mod[mask]
     df_for_col = df_for_col[mask]
 
-# --- Renderizado de los Selectores con opciones filtradas ---
+# --- Renderizado de Widgets ---
 with colf2: 
-    mod = st.multiselect("Selecciona Modelo:", sorted(df_for_mod['Modelo'].unique()), key="f_mod")
+    mod = st.multiselect("Modelo:", sorted(df_for_mod['Modelo'].unique()), key="f_mod")
 
 with colf3: 
-    col = st.multiselect("Selecciona Color:", sorted(df_for_col['Color'].unique()), key="f_col")
+    col = st.multiselect("Color:", sorted(df_for_col['Color'].unique()), key="f_col")
 
 with colf4: 
-    ano = st.multiselect("Selecciona Año:", sorted(df_for_ano['Año Modelo'].unique()), key="f_ano")
+    ano = st.multiselect("Año:", sorted(df_for_ano['Año Modelo'].unique()), key="f_ano")
 
 with colf5: 
     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-    st.button("🧹 Limpiar Filtros", on_click=reset_filtros, use_container_width=True)
+    st.button("🧹 Limpiar", on_click=reset_filtros, use_container_width=True)
 
-# --- Filtrado Final del DataFrame para mostrar resultados ---
+# --- Filtrado Final del DataFrame para los resultados ---
 df_f = df_inv.copy()
-if bus: df_f = df_f[df_f['Modelo'].str.contains(bus, case=False, na=False)]
-if mod: df_f = df_f[df_f['Modelo'].isin(mod)]
-if col: df_f = df_f[df_f['Color'].isin(col)]
-if ano: df_f = df_f[df_f['Año Modelo'].isin(ano)]
-df_f = df_inv.copy()
-
-with colf1: bus = st.text_input("Buscar:", key="bus_txt")
-with colf2: mod = st.multiselect("Selecciona Modelo:", sorted(df_f['Modelo'].unique()), key="f_mod")
-with colf3: col = st.multiselect("Selecciona Color:", sorted(df_f['Color'].unique()), key="f_col")
-with colf4: ano = st.multiselect("Selecciona Año:", sorted(df_f['Año Modelo'].unique()), key="f_ano")
-with colf5: 
-    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-    st.button("🧹 Limpiar Filtros", on_click=reset_filtros, use_container_width=True)
-
-if bus: df_f = df_f[df_f['Modelo'].str.contains(bus, case=False, na=False)]
-if mod: df_f = df_f[df_f['Modelo'].isin(mod)]
-if col: df_f = df_f[df_f['Color'].isin(col)]
-if ano: df_f = df_f[df_f['Año Modelo'].isin(ano)]
-
+if st.session_state.bus_txt: 
+    df_f = df_f[df_f['Modelo'].str.contains(st.session_state.bus_txt, case=False, na=False)]
+if st.session_state.f_mod: 
+    df_f = df_f[df_f['Modelo'].isin(st.session_state.f_mod)]
+if st.session_state.f_col: 
+    df_f = df_f[df_f['Color'].isin(st.session_state.f_col)]
+if st.session_state.f_ano: 
+    df_f = df_f[df_f['Año Modelo'].isin(st.session_state.f_ano)]
 # ============================================
 # GRID DE TARJETAS
 # ============================================
