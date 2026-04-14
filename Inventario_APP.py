@@ -207,7 +207,7 @@ nombre_regional = datos_usuario.iloc[0]
 col_logo, col_titulo = st.columns([1, 5])
 
 with col_logo:
-    st.image("https://portal.motodrv.com/motodrive/wp-content/uploads/2020/01/Logo-Mdv-1.png", width=120)
+    st.image("https://portal.motodrv.com/motodrive/wp-content/uploads/2020/01/Logo-Mdv-1.png", width=100)
 
 with col_titulo:
     st.title("Sistema de Apartado Motodrive")
