@@ -94,6 +94,7 @@ ws_movs = gsheet.worksheet("Movimientos_Apartados")
 
 @st.cache_data(ttl=60)
 def load_data():
+    
     inv = conn.read(spreadsheet=URL, worksheet="Inventario")
     usr = conn.read(spreadsheet=URL, worksheet="Usuarios")
     age = conn.read(spreadsheet=URL, worksheet="Agencias")
@@ -102,9 +103,13 @@ def load_data():
 
 df_inv, df_usr, df_age, df_movs = load_data()
 df_inv = df_inv[df_inv['Modelo'].notna()].copy()
-df_inv['Año Modelo'] = df_inv['Año Modelo'].fillna(0).astype(int).astype(str).replace('0', 'N/A')
-df_inv['Año Modelo'] = pd.to_numeric(df_inv['Año Modelo'], errors='coerce').fillna(0).astype(int).astype(str)
 
+# LIMPIEZA INVENTARIO: Convierte año a entero y luego a texto
+df_inv['Año Modelo'] = pd.to_numeric(df_inv['Año Modelo'], errors='coerce').fillna(0).astype(int).astype(str).replace('0', 'N/A')
+
+# LIMPIEZA MOVIMIENTOS: Hacemos lo mismo para la tabla de abajo
+if 'Año Modelo' in df_movs.columns:
+    df_movs['Año Modelo'] = pd.to_numeric(df_movs['Año Modelo'], errors='coerce').fillna(0).astype(int).astype(str).replace('0', 'N/A')
 # ============================================
 # VENTANA FLOTANTE (MODAL)
 # ============================================
@@ -127,13 +132,17 @@ def ventana_apartar(item_row, nombre_regional, user_email):
             if st.button("Cancelar", use_container_width=True):
                 st.rerun()
         with col_v2:
-            if st.button("Confirmar", type="primary", use_container_width=True):       
+            if st.button("Confirmar", type="primary", use_container_width=True):
                 nuevo_mov = [
                     str(uuid.uuid4())[:8].upper(),
                     datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    item_row['Item Number'], item_row['Modelo'], item_row['Color'],
-                    item_row['Año Modelo'], suc_dest, int(cant), user_email
-                ]
+                    item_row['Item Number'], 
+                    item_row['Modelo'], 
+                    item_row['Color'],
+                    str(item_row['Año Modelo']),  # <--- Aseguramos que se guarde como texto
+                    suc_dest, 
+                    int(cant), 
+                    user_email]
                 
                 ws_movs.append_row(nuevo_mov, table_range="A1")
                 
@@ -275,10 +284,14 @@ for row_data in rows:
 st.write("---")
 st.subheader("Resumen de Movimientos:")
 
-col_formato = 'Cantidad Apartada'
-
-if col_formato in df_movs.columns:
-    df_styled = df_movs.style.format(subset=[col_formato], formatter="{:,}")
-    st.dataframe(df_styled, use_container_width=True, hide_index=True)
-else:
-    st.dataframe(df_movs, use_container_width=True, hide_index=True)
+if not df_movs.empty:
+    df_display = df_movs.copy()
+    # Doble check para quitar cualquier .0 residual antes de mostrar
+    if 'Año Modelo' in df_display.columns:
+        df_display['Año Modelo'] = df_display['Año Modelo'].astype(str).str.replace('.0', '', regex=False)
+    
+    col_formato = 'Cantidad Apartada'
+    if col_formato in df_display.columns:
+        st.dataframe(df_display.style.format({col_formato: "{:,}"}), use_container_width=True, hide_index=True)
+    else:
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
