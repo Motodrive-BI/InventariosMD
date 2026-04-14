@@ -103,6 +103,7 @@ def load_data():
 df_inv, df_usr, df_age, df_movs = load_data()
 df_inv = df_inv[df_inv['Modelo'].notna()].copy()
 df_inv['Año Modelo'] = df_inv['Año Modelo'].fillna(0).astype(int).astype(str).replace('0', 'N/A')
+df_inv['Año Modelo'] = pd.to_numeric(df_inv['Año Modelo'], errors='coerce').fillna(0).astype(int).astype(str)
 
 # ============================================
 # VENTANA FLOTANTE (MODAL)
